@@ -1,8 +1,21 @@
-created this new release directory on 2-Sep-2011 (sit_release = ana-0.3.22)
+This project contains analysis modules that work with the C++ framework 'psana', currently in use at the Linac Coherent Light Source (LCLS) at SLAC National Accelerator Laboratory.
+
+It consists of one package "kitty", and the following modules:
+
+kitty
+	- "discriminate"   ---   accept or reject events
+	- "correct"        ---   apply corrections to the data
+	- "correlate"      ---   compute correlations
+
+
+To build these modules on LCLS computers, you will need the "giraffe" library, available as a git repository at "feldkamp/giraffe".
 
 
 
----commands:
+The new release directory was created on 2-Sep-2011
+(sit_release = ana-0.3.22)
+
+---execute the following on LCLS machines to create a new psana release directory, build an example module and test it:
 
     kinit
     newrel ana-current ananew
