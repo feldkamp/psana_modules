@@ -1,0 +1,2 @@
+#!/bin/tcsh
+rsync -av  --exclude '.DS_Store' --exclude '.git' --exclude 'ana.xcodeproj' --exclude '.sconsign.dblite' --exclude '.pkg_tree.pkl' . feldkamp@psexport.slac.stanford.edu:ana/

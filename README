@@ -1,0 +1,25 @@
+created this new release directory on 2-Sep-2011 (sit_release = ana-0.3.22)
+
+
+
+---commands:
+
+    kinit
+    newrel ana-current ananew
+    cd ananew/
+    sit_setup
+    newpkg kitty
+    mkdir kitty/src
+    mkdir kitty/include
+    codegen -l psana-module kitty correlation
+    scons
+    vi psana.cfg
+    psana /reg/d/ana02/cxi/cxi35711/xtc/e86-r0020-s01-c00.xtc
+
+
+
+---basic psana.cfg file contents:
+[psana]
+modules = PrintSeparator PrintEventId kitty.correlation
+[kitty.correlation]
+

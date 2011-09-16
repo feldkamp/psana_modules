@@ -1,0 +1,20 @@
+#--------------------------------------------------------------------------
+# File and Version Information:
+#  $Id$
+#
+# Description:
+#  README file for package kitty
+#------------------------------------------------------------------------
+
+Package author: Jan Moritz Feldkamp
+
+Brief description:
+==================
+
+package to extract CSPAD data and calculate the angular cross-correlation function
+
+Detailed description:
+=====================
+
+More detailed info goes here. Describe main classes/applications built in
+this package. Give few examples of their use.
