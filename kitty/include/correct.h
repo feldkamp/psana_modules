@@ -83,22 +83,24 @@ public:
 
 	/// Method which is called once at the end of the job
 	virtual void endJob(Event& evt, Env& env);
-
-
-	void assembleRawImageCSPAD( array1D *input, array2D *&output );
-	
+		
 protected:
 
 private:
 	
 	std::string p_back_fn;
 	int p_useBack;
-	int p_count;
-		
+	std::string p_gain_fn;
+	int p_useGain;
+	std::string p_outputPrefix;
+	
+	
 	arraydataIO *io;
 	array1D *p_sum;
 	array1D *p_back;
+	array1D *p_gain;
 
+	int p_count;
 };
 
 } // namespace kitty

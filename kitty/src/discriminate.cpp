@@ -148,7 +148,7 @@ discriminate::event(Event& evt, Env& env)
 	}
 	
 	double avgPerPix = datasum/(double)pxsum;
-	evtinfo << "sum=" << datasum << ", pixelavg= " << avgPerPix << " diff threshold=" << datasum-p_threshold << " ";
+	evtinfo << "pixelavg= " << avgPerPix << ", avg diff to threshold=" << avgPerPix-p_threshold << " ";
 	
 	if ( avgPerPix <= p_threshold ){
 		evtinfo << " --> SKIP";

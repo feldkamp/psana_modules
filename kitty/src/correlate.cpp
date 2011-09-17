@@ -77,13 +77,43 @@ correlate::correlate (const std::string& name)
 	p_LUTy				= config   ("LUTy",					100);
 
 	io = new arraydataIO;
-	p_pixX = NULL;
-	p_pixY = NULL;
-	p_badPixelMask = NULL;
-	p_LUT = NULL;
 	
+	m_cspad_calibpar   = new PSCalib::CSPadCalibPars(m_calibDir, m_typeGroupName, m_src, m_runNumber);
+	m_pix_coords_2x1   = new CSPadPixCoords::PixCoords2x1();
+	m_pix_coords_quad  = new CSPadPixCoords::PixCoordsQuad( m_pix_coords_2x1,  m_cspad_calibpar, m_tiltIsApplied );
+	m_pix_coords_cspad = new CSPadPixCoords::PixCoordsCSPad( m_pix_coords_quad, m_cspad_calibpar, m_tiltIsApplied );
+	
+	//cout << "------------calib pars---------------" << endl;
+	//m_cspad_calibpar->printCalibPars();
+	//cout << "------------pix coords 2x1-----------" << endl;
+	//m_pix_coords_2x1->print_member_data();
+
+
+	//get pixel value arrays and eventually a bad pixel mask
+	p_pixX = new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx);
+	p_pixY = new array1D( m_pix_coords_cspad->getPixCoorArrY_um(), nMaxTotalPx);
+
+	//load bad pixel mask .... TODO 
+	p_badPixelMask = NULL;
+	
+
+	//before everything starts, create a dummy CrossCorrelator to set up some things
+	CrossCorrelator *dummy_cc = new CrossCorrelator(p_pixX, p_pixX, p_pixY, p_nPhi, p_nQ1);
+	p_nLag = dummy_cc->nLag();
+	if ( p_alg == 2 || p_alg == 4 ){
+		//prepare lookup table once here, so it doesn't have to be done every time
+		dummy_cc->createLookupTable(p_LUTy, p_LUTx);
+		p_LUT = new array2D( *(dummy_cc->lookupTable()) );
+		io->writeToEDF( "LUT.edf", p_LUT );
+	}
+	delete dummy_cc;	
+	
+	
+	//set up arrays that keep track of the running sums
 	p_polarAvg = new array2D( p_nQ1, p_nPhi );
-	p_corrAvg = new array2D( p_nQ1, p_nPhi );
+	p_corrAvg = new array2D( p_nQ1, p_nLag );
+	
+	p_count = 0;
 }
 
 //--------------
@@ -92,6 +122,15 @@ correlate::correlate (const std::string& name)
 correlate::~correlate ()
 {
 	delete io;
+	
+	delete m_cspad_calibpar; 
+	delete m_pix_coords_2x1;
+	delete m_pix_coords_quad;
+	delete m_pix_coords_cspad;
+	
+	delete p_pixX;
+	delete p_pixY;
+	delete p_badPixelMask;
 }
 
 
@@ -126,34 +165,6 @@ void
 correlate::beginRun(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correlate::beginRun()" );
-	
-	m_cspad_calibpar   = new PSCalib::CSPadCalibPars(m_calibDir, m_typeGroupName, m_src, m_runNumber);
-	m_pix_coords_2x1   = new CSPadPixCoords::PixCoords2x1();
-	m_pix_coords_quad  = new CSPadPixCoords::PixCoordsQuad( m_pix_coords_2x1,  m_cspad_calibpar, m_tiltIsApplied );
-	m_pix_coords_cspad = new CSPadPixCoords::PixCoordsCSPad( m_pix_coords_quad, m_cspad_calibpar, m_tiltIsApplied );
-	
-	//cout << "------------calib pars---------------" << endl;
-	//m_cspad_calibpar->printCalibPars();
-	//cout << "------------pix coords 2x1-----------" << endl;
-	//m_pix_coords_2x1->print_member_data();
-
-
-	//get pixel value arrays and eventually a bad pixel mask
-	p_pixX = new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx);
-	p_pixY = new array1D( m_pix_coords_cspad->getPixCoorArrY_um(), nMaxTotalPx);
-
-	//load bad pixel mask .... TODO 
-	p_badPixelMask = NULL;
-	
-	
-	
-	if ( p_alg == 2 || p_alg == 4 ){
-		//prepare lookup table once in a dummy CrossCorrelator object, so it doesn't have to be done every time
-		CrossCorrelator *lutcc = new CrossCorrelator(p_pixX, p_pixX, p_pixY, p_nPhi, p_nQ1);
-		lutcc->createLookupTable(p_LUTy, p_LUTx);
-		p_LUT = new array2D( *(lutcc->lookupTable()) );
-		io->writeToEDF( "LUT.edf", p_LUT );
-	}	
 }
 
 
@@ -246,8 +257,9 @@ correlate::event(Event& evt, Env& env)
 		delete io;
 		delete cc;
 		
+		p_count++;
 	}else{
-		MsgLog(name(), info, "could not get CSPAD data" );
+		MsgLog(name(), warning, "could not get CSPAD data" );
 	}
 
 }
@@ -268,15 +280,6 @@ void
 correlate::endRun(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correlate::endRun()" );
-	
-	delete m_cspad_calibpar; 
-	delete m_pix_coords_2x1;
-	delete m_pix_coords_quad;
-	delete m_pix_coords_cspad;
-	
-	delete p_pixX;
-	delete p_pixY;
-	delete p_badPixelMask;
 }
 
 
@@ -285,7 +288,8 @@ correlate::endRun(Event& evt, Env& env)
 void 
 correlate::endJob(Event& evt, Env& env)
 {
-	//STILL NEED TO CREATE AVERAGES OUT OF THE RUNNING SUMS
+	p_polarAvg->divideByValue( p_count );
+	p_corrAvg->divideByValue( p_count );
 
 	MsgLog(name(), debug,  "correlate::endJob()" );
 	

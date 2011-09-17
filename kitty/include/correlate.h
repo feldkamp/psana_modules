@@ -105,6 +105,7 @@ private:
 	int p_nPhi;
 	int p_nQ1;
 	int p_nQ2;
+	int p_nLag;
 	
 	int p_alg;
 	
@@ -124,6 +125,8 @@ private:
 
 	array2D *p_polarAvg;
 	array2D *p_corrAvg;
+	
+	int p_count;
 	
 	//needed for CSPadPixCoords
 	bool			m_tiltIsApplied;

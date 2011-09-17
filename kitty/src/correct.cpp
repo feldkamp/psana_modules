@@ -51,10 +51,14 @@ correct::correct (const std::string& name)
   // get the values from configuration or use defaults
 	p_back_fn		= configStr("background", "");	
 	p_useBack		= config   ("useBackground", 0);
+	p_gain_fn		= configStr("gainmap", "");	
+	p_useGain		= config   ("useGainmap", 0);
 		
 	io = new arraydataIO;
-	p_sum = new array1D(nMaxTotalPx);
 	p_back = new array1D();
+	p_gain = new array1D();
+	
+	p_count = 0;
 }
 
 //--------------
@@ -63,8 +67,8 @@ correct::correct (const std::string& name)
 correct::~correct ()
 {
 	delete io;
-	delete p_sum;
 	delete p_back;
+	delete p_gain;
 }
 
 
@@ -73,14 +77,16 @@ correct::~correct ()
 void 
 correct::beginJob(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "correct::beginJob()" );
+	MsgLog(name(), debug, "correct::beginJob()" );
 	MsgLog(name(), info, "background file = '" << p_back_fn << "'" );
 	MsgLog(name(), info, "use background correction = '" << p_useBack << "'" );
+	MsgLog(name(), info, "gain file = '" << p_gain_fn << "'" );
+	MsgLog(name(), info, "use gain correction = '" << p_useGain << "'" );
 	
 	//read background, if a file was specified
 	if (p_useBack){
 		if (p_back_fn != ""){
-			array1D *p_back = new array1D();
+			p_back = new array1D;
 			int fail = io->readFromEDF( p_back_fn, p_back );
 			if (fail){
 				MsgLog(name(), warning, "Could not read background, continuing without background subtraction!");
@@ -89,6 +95,21 @@ correct::beginJob(Event& evt, Env& env)
 		}else{
 				MsgLog(name(), warning, "No background file specified in config file, continuing without background subtraction!");
 				p_useBack = 0;			
+		}
+	}
+
+	//read gainmap, if a file was specified
+	if (p_useGain){
+		if (p_gain_fn != ""){
+			p_gain = new array1D;
+			int fail = io->readFromEDF( p_gain_fn, p_gain );
+			if (fail){
+				MsgLog(name(), warning, "Could not read gainmap, continuing without gain correction!");
+				p_useGain = 0;	
+			}
+		}else{
+				MsgLog(name(), warning, "No gain file specified in config file, continuing without gain correction!");
+				p_useGain = 0;			
 		}
 	}
 		
@@ -128,12 +149,15 @@ correct::event(Event& evt, Env& env)
 		if (p_useBack){
 			data->subtractArrayElementwise( p_back );
 		}
+		
+		if (p_useGain){
+			data->divideByArrayElementwise( p_gain );
+		}
+	
+		p_count++;	
 	}else{
-		MsgLog(name(), info, "could not get CSPAD data" );
+		MsgLog(name(), warning, "could not get CSPAD data" );
 	}
-
-	p_sum->addArrayElementwise( data.get() );	
-	p_count++;
 }
   
   
@@ -161,68 +185,6 @@ void
 correct::endJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correct::endJob()" );
-	
-	//create average out of raw sum
-	p_sum->divideByValue( p_count );
-	
-	//output of 2D raw image (cheetah-style)
-	array2D *raw2D = new array2D();
-	assembleRawImageCSPAD( p_sum, raw2D );
-	io->writeToEDF("rawsum_avg_1D.edf", p_sum);
-	io->writeToEDF("rawsum_avg_2D.edf", raw2D);
-
-//DEBUG!!!
-	for (int i=0; i<10; i++){
-		cout << "1D(" << i << ") = " << p_sum->get_atIndex(i) << endl;
-		cout << "2D(" << i << ") = " << raw2D->get_atIndex(i) << endl;
-	}	
-	delete raw2D;
-	
-}
-
-
-//------------------------------------------------------------- assembleRawImageCSPAD
-// function to create 'raw' CSPAD images from plain 1D data, where
-// dim1 : 388 : rows of a 2x1
-// dim2 : 185 : columns of a 2x1
-// dim3 :   8 : 2x1 sections in a quadrant (align as super-columns)
-// dim4 :   4 : quadrants (align as super-rows)
-//
-//    +--+--+--+--+--+--+--+--+
-// q0 |  |  |  |  |  |  |  |  |
-//    |  |  |  |  |  |  |  |  |
-//    +--+--+--+--+--+--+--+--+
-// q1 |  |  |  |  |  |  |  |  |
-//    |  |  |  |  |  |  |  |  |
-//    +--+--+--+--+--+--+--+--+
-// q2 |  |  |  |  |  |  |  |  |
-//    |  |  |  |  |  |  |  |  |
-//    +--+--+--+--+--+--+--+--+
-// q3 |  |  |  |  |  |  |  |  |
-//    |  |  |  |  |  |  |  |  |
-//    +--+--+--+--+--+--+--+--+
-//     s0 s1 s2 s3 s4 s5 s6 s7
-void
-correct::assembleRawImageCSPAD( array1D *input, array2D *&output ){
-	delete output;
-	output = new array2D( nMaxQuads*nRowsPer2x1, nMax2x1sPerQuad*nColsPer2x1 );
-	
-	//sort into ordered 2D data
-	for (int q = 0; q < nMaxQuads; q++){
-		int superrow = q*nRowsPer2x1;
-		for (int s = 0; s < nMax2x1sPerQuad; s++){
-			int supercol = s*nColsPer2x1;
-			for (int c = 0; c < nColsPer2x1; c++){
-				for (int r = 0; r < nRowsPer2x1; r++){
-					output->set( superrow+r, supercol+c, 
-						input->get( q*nMaxPxPerQuad + s*nPxPer2x1 + c*nRowsPer2x1 + r ) );
-				}
-			}
-		}
-	}
-	
-	//transpose to be conform with cheetah's convention
-	output->transpose();
 }
 
 
