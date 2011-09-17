@@ -5,6 +5,7 @@ It consists of one package "kitty", and the following modules:
 kitty
 	- "discriminate"   ---   accept or reject events
 	- "correct"        ---   apply corrections to the data
+	- "assemble"       ---   create raw and assembled CSPAD images
 	- "correlate"      ---   compute correlations
 
 
