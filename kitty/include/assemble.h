@@ -91,15 +91,13 @@ public:
 	virtual void endJob(Event& evt, Env& env);
 
 
-	void createRawImageCSPAD( array1D *input, array2D *&output );
-
-	void createAssembledImageCSPAD( array1D *input, array2D *&output );
 		
 protected:
 
 private:
 	std::string p_outputPrefix;
-	
+	int p_useNormalization;
+		
 	arraydataIO *io;
 	array1D *p_sum;
 
