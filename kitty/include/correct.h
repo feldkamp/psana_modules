@@ -92,6 +92,8 @@ private:
 	int p_useBack;
 	std::string p_gain_fn;
 	int p_useGain;
+	std::string p_mask_fn;
+	int p_useMask;
 	std::string p_outputPrefix;
 	
 	
@@ -99,6 +101,7 @@ private:
 	array1D *p_sum;
 	array1D *p_back;
 	array1D *p_gain;
+	array1D *p_mask;
 
 	int p_count;
 };

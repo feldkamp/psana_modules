@@ -49,14 +49,17 @@ correct::correct (const std::string& name)
   : Module(name)
 {
   // get the values from configuration or use defaults
-	p_back_fn		= configStr("background", "");	
-	p_useBack		= config   ("useBackground", 0);
-	p_gain_fn		= configStr("gainmap", "");	
-	p_useGain		= config   ("useGainmap", 0);
+	p_back_fn			= configStr("background", 		"");	
+	p_useBack			= config   ("useBackground", 	0);
+	p_gain_fn			= configStr("gainmap", 			"");	
+	p_useGain			= config   ("useGainmap", 		0);
+	p_mask_fn			= configStr("mask", 			"");	
+	p_useMask			= config   ("useMask", 			0);
 		
 	io = new arraydataIO;
 	p_back = new array1D();
 	p_gain = new array1D();
+	p_mask = new array1D();
 	
 	p_count = 0;
 }
@@ -69,6 +72,7 @@ correct::~correct ()
 	delete io;
 	delete p_back;
 	delete p_gain;
+	delete p_mask;
 }
 
 
@@ -82,12 +86,17 @@ correct::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "use background correction = '" << p_useBack << "'" );
 	MsgLog(name(), info, "gain file = '" << p_gain_fn << "'" );
 	MsgLog(name(), info, "use gain correction = '" << p_useGain << "'" );
-	
+	MsgLog(name(), info, "mask file = '" << p_mask_fn << "'" );
+	MsgLog(name(), info, "use mask correction = '" << p_useMask << "'" );
+
+		
 	//read background, if a file was specified
 	if (p_useBack){
 		if (p_back_fn != ""){
+			delete p_back;
 			p_back = new array1D;
 			int fail = io->readFromEDF( p_back_fn, p_back );
+			MsgLog(name(), info, "histogram of background read\n" << p_back->getHistogramASCII(20) );
 			if (fail){
 				MsgLog(name(), warning, "Could not read background, continuing without background subtraction!");
 				p_useBack = 0;	
@@ -101,8 +110,10 @@ correct::beginJob(Event& evt, Env& env)
 	//read gainmap, if a file was specified
 	if (p_useGain){
 		if (p_gain_fn != ""){
+			delete p_gain;
 			p_gain = new array1D;
 			int fail = io->readFromEDF( p_gain_fn, p_gain );
+			MsgLog(name(), info, "histogram of gain map read\n" << p_gain->getHistogramASCII(20) );
 			if (fail){
 				MsgLog(name(), warning, "Could not read gainmap, continuing without gain correction!");
 				p_useGain = 0;	
@@ -110,6 +121,23 @@ correct::beginJob(Event& evt, Env& env)
 		}else{
 				MsgLog(name(), warning, "No gain file specified in config file, continuing without gain correction!");
 				p_useGain = 0;			
+		}
+	}
+	
+	//read mask, if a file was specified
+	if (p_useMask){
+		if (p_mask_fn != ""){
+			delete p_mask;
+			p_mask = new array1D;
+			int fail = io->readFromEDF( p_mask_fn, p_mask );
+			MsgLog(name(), info, "histogram of mask read\n" << p_mask->getHistogramASCII(2) );
+			if (fail){
+				MsgLog(name(), warning, "Could not read mask, continuing without mask correction!");
+				p_useMask = 0;	
+			}
+		}else{
+				MsgLog(name(), warning, "No mask file specified in config file, continuing without mask correction!");
+				p_useMask = 0;			
 		}
 	}
 		
@@ -141,19 +169,37 @@ void
 correct::event(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correct::event()" );
+	int hist_size = 50;
 
-	shared_ptr<array1D> data = evt.get();
+	shared_ptr<array1D> data = evt.get(IDSTRING_CSPAD_DATA);
 	if (data){
 		MsgLog(name(), debug, "read event data of size " << data->size() );
-
+		MsgLog(name(), debug, "---histogram of event data before correction---\n" 
+			<< data->getHistogramASCII(hist_size) );
+		
+		//-------------------------------------------------background
 		if (p_useBack){
-			data->subtractArrayElementwise( p_back );
+			data.get()->subtractArrayElementwise( p_back );
+		}
+
+		//-------------------------------------------------gain		
+		if (p_useGain){
+			data.get()->divideByArrayElementwise( p_gain );
 		}
 		
-		if (p_useGain){
-			data->divideByArrayElementwise( p_gain );
+		//-------------------------------------------------mask
+		if (p_useMask){
+			//data.get()->multiplyByArrayElementwise( p_mask );
+			for (unsigned int i = 0; i < data->size(); i++){
+				if (p_mask->get(i) < 0.9){
+					data->set(i, 0);
+				}
+			}
 		}
-	
+		
+		MsgLog(name(), debug, "---histogram of event data after correction---\n" 
+			<< data->getHistogramASCII(hist_size) );
+		
 		p_count++;	
 	}else{
 		MsgLog(name(), warning, "could not get CSPAD data" );
