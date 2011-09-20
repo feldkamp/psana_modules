@@ -13,6 +13,7 @@
 //-----------------
 // C/C++ Headers --
 //-----------------
+#include <vector>
 
 //----------------------
 // Base Class Headers --
@@ -89,13 +90,16 @@ protected:
 
 private:
 	//own private variables
-	int p_threshold;
+	int p_lowerThreshold;
+	int p_upperThreshold;
 	
 	int p_skipcount;
 	int p_hitcount;
 	
 	int p_numQuads;
 	int p_numSect;
+	
+	std::vector<double> p_hitInt;
 	
 
 	std::string m_source;         // i.e. CxiDs1.0:Cspad.0

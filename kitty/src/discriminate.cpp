@@ -18,6 +18,11 @@
 //-----------------
 // C/C++ Headers --
 //-----------------
+#include <iomanip>
+using std::setw;
+
+#include <vector>
+using std::vector;
 
 //-------------------------------
 // Collaborating Class Headers --
@@ -61,7 +66,8 @@ discriminate::discriminate (const std::string& name)
 	m_filter        = config   ("filter",        false);
 	m_src           = m_source;
 	
-	p_threshold 	= config("threshold", 0);
+	p_lowerThreshold 	= config("lowerThreshold", 0);
+	p_upperThreshold 	= config("upperThreshold", 100000);
 	
 	p_skipcount = 0;
 	p_hitcount = 0;
@@ -80,8 +86,20 @@ discriminate::~discriminate ()
 void 
 discriminate::beginJob(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "discriminate::beginJob()" );
+	MsgLog(name(), debug, "discriminate::beginJob()" );
 	MsgLog(name(), info, "max events = " << m_maxEvents );
+	MsgLog(name(), info, "lowerThreshold = " << p_lowerThreshold );
+	MsgLog(name(), info, "upperThreshold = " << p_upperThreshold );
+	
+	MsgLog(name(), info, "nRowsPerASIC = " << nRowsPerASIC );
+	MsgLog(name(), info, "nColsPerASIC = " << nColsPerASIC ); 
+	MsgLog(name(), info, "nRowsPer2x1 = " << nRowsPer2x1 );
+	MsgLog(name(), info, "nColsPer2x1 = " << nColsPer2x1 ); 
+	MsgLog(name(), info, "nMax2x1sPerQuad =  " << nMax2x1sPerQuad ); 
+	MsgLog(name(), info, "nMaxQuads = " << nMaxQuads ); 
+	MsgLog(name(), info, "nPxPer2x1 = " << nPxPer2x1 ); 
+	MsgLog(name(), info, "nMaxPxPerQuad = " << nMaxPxPerQuad ); 
+	MsgLog(name(), info, "nMaxTotalPx = " << nMaxTotalPx ); 
 }
 
 
@@ -110,7 +128,7 @@ void
 discriminate::event(Event& evt, Env& env)
 {
 	ostringstream evtinfo;
-	evtinfo <<  "# " << m_count << " of " << m_maxEvents << ". ";
+	evtinfo <<  "# " << m_count << ":  ";
 	
 	double datasum = 0.;
 	int pxsum = 0;
@@ -148,21 +166,27 @@ discriminate::event(Event& evt, Env& env)
 	}
 	
 	double avgPerPix = datasum/(double)pxsum;
-	evtinfo << "pixelavg= " << avgPerPix << ", avg diff to threshold=" << avgPerPix-p_threshold << " ";
+	evtinfo << "avg: " << setw(8) << avgPerPix << ", threshold delta: (" 
+		<< setw(8) << avgPerPix-p_lowerThreshold << "/"
+		<< setw(8) << avgPerPix-p_upperThreshold << ") ";
 	
-	if ( avgPerPix <= p_threshold ){
-		evtinfo << " --> SKIP";
-		p_skipcount++;
+	if ( avgPerPix <= p_lowerThreshold || avgPerPix >= p_upperThreshold ){
+		evtinfo << " xxxxx REJECT xxxxx";
 
 		// all downstream modules will not be called
 		skip();
 		
+		p_skipcount++;
 	}else{
-		evtinfo << " --> HIT";
-		p_hitcount++;
+		evtinfo << " --> ACCEPT <--";
 		
 		// add the data to the event so that other modules can access it
-		evt.put(raw1D_sp);
+		evt.put(raw1D_sp, IDSTRING_CSPAD_DATA);
+		
+		// put intensity in hit array
+		p_hitInt.push_back(avgPerPix);
+		
+		p_hitcount++;
 	}
 	
 	// gracefully stop analysis job
@@ -208,12 +232,11 @@ discriminate::endJob(Event& evt, Env& env)
 		<< ", hits: " << p_hitcount 
 		<< ", skipped: " << p_skipcount 
 		<< ", hitrate: " << p_hitcount/(double)m_count * 100 << "%." );
+		
+	arraydata *hits = new arraydata(p_hitInt);
+	MsgLog(name(), info, "---hit intensity histogram---\n" << hits->getHistogramASCII(30) );
+	delete hits;
 }
-
-
-
-
-
 
 
 
