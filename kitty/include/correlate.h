@@ -99,7 +99,8 @@ private:
 	int p_h5Out;
 
 	int p_autoCorrelateOnly;
-	int p_useBadPixelMask;
+	std::string p_mask_fn;
+	int p_useMask;
 	int p_singleOutput;
 	
 	int p_nPhi;
@@ -119,7 +120,7 @@ private:
 	
 	array1D *p_pixX;
 	array1D *p_pixY;
-	array1D *p_badPixelMask;
+	array1D *p_mask;
 
 	array2D *p_LUT;
 

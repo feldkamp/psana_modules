@@ -61,7 +61,8 @@ correlate::correlate (const std::string& name)
 	p_edfOut 			= config   ("edfOut", 				1);
 	p_h5Out 			= config   ("h5Out", 				0);
 	p_autoCorrelateOnly = config   ("autoCorrelateOnly",	1);
-	p_useBadPixelMask 	= config   ("useBadPixelMask",		1);
+	p_mask_fn			= configStr("mask", 				"");	
+	p_useMask			= config   ("useMask", 				0);
 	p_singleOutput		= config   ("singleOutput",			0);
 
 	p_nPhi 				= config   ("nPhi",					128);
@@ -93,8 +94,9 @@ correlate::correlate (const std::string& name)
 	p_pixX = new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx);
 	p_pixY = new array1D( m_pix_coords_cspad->getPixCoorArrY_um(), nMaxTotalPx);
 
-	//load bad pixel mask .... TODO 
-	p_badPixelMask = NULL;
+	//load bad pixel mask
+	p_mask = new array1D();
+	io->readFromEDF( p_mask_fn, p_mask );
 	
 
 	//before everything starts, create a dummy CrossCorrelator to set up some things
@@ -130,7 +132,7 @@ correlate::~correlate ()
 	
 	delete p_pixX;
 	delete p_pixY;
-	delete p_badPixelMask;
+	delete p_mask;
 }
 
 
@@ -145,7 +147,8 @@ correlate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "edfOut            = '" << p_edfOut << "'" );
 	MsgLog(name(), info, "h5Out             = '" << p_h5Out << "'" );
 	MsgLog(name(), info, "autoCorrelateOnly = '" << p_autoCorrelateOnly << "'" );
-	MsgLog(name(), info, "useBadPixelMask   = '" << p_useBadPixelMask << "'" );
+	MsgLog(name(), info, "useMask           = '" << p_useMask << "'" );
+	MsgLog(name(), info, "mask              = '" << p_mask << "'" );
 	MsgLog(name(), info, "singleOutput      = '" << p_singleOutput << "'" );
 	MsgLog(name(), info, "nPhi              = '" << p_nPhi << "'" );
 	MsgLog(name(), info, "nQ1               = '" << p_nQ1 << "'" );
@@ -156,6 +159,16 @@ correlate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "LUTx              = '" << p_LUTx << "'" );
 	MsgLog(name(), info, "LUTy              = '" << p_LUTy << "'" );
 	//MsgLog(name(), info, "   = '" << p_ << "'" );
+	
+	
+	shared_ptr<array1D> pixX = evt.get(IDSTRING_PX_X_UM);
+	
+	if (pixX){
+		MsgLog(name(), info, "read pixX data of size " << pixX->size() );
+	}else{
+		MsgLog(name(), warning, "could not get PIX_X data" );
+	}
+	
 }
 
 
@@ -185,7 +198,7 @@ correlate::event(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correlate::event()" );
 
-	shared_ptr<array1D> data = evt.get();
+	shared_ptr<array1D> data = evt.get(IDSTRING_CSPAD_DATA);
 	shared_ptr<PSEvt::EventId> eventId = evt.get();
 	
 	if (data){
@@ -199,14 +212,14 @@ correlate::event(Event& evt, Env& env)
 		//the arguments that are passed to the constructor determine 2D/3D calculations with/without mask
 		CrossCorrelator *cc = NULL;
 		if (p_autoCorrelateOnly) {
-			if (p_useBadPixelMask) {											//auto-correlation 2D case, with mask
-				cc = new CrossCorrelator( data.get(), p_pixX, p_pixY, p_nPhi, p_nQ1, 0, p_badPixelMask );
+			if (p_useMask) {											//auto-correlation 2D case, with mask
+				cc = new CrossCorrelator( data.get(), p_pixX, p_pixY, p_nPhi, p_nQ1, 0, p_mask );
 			} else { 															//auto-correlation 2D case, no mask
 				cc = new CrossCorrelator( data.get(), p_pixX, p_pixY, p_nPhi, p_nQ1 );
 			}
 		} else {
-			if (p_useBadPixelMask){												//full cross-correlation 3D case, with mask
-				cc = new CrossCorrelator( data.get(), p_pixX, p_pixY, p_nPhi, p_nQ1, p_nQ2, p_badPixelMask );
+			if (p_useMask){												//full cross-correlation 3D case, with mask
+				cc = new CrossCorrelator( data.get(), p_pixX, p_pixY, p_nPhi, p_nQ1, p_nQ2, p_mask );
 			} else { 															//full cross-correlation 3D case, no mask
 				cc = new CrossCorrelator( data.get(), p_pixX, p_pixY, p_nQ1, p_nQ1, p_nQ2);
 			}
