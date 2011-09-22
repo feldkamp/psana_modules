@@ -28,12 +28,6 @@
 //------------------------------------
 // Collaborating Class Declarations --
 //------------------------------------
-#include "PSCalib/CSPadCalibPars.h"
-
-#include "CSPadPixCoords/QuadParameters.h"
-#include "CSPadPixCoords/PixCoords2x1.h"
-#include "CSPadPixCoords/PixCoordsQuad.h"
-#include "CSPadPixCoords/PixCoordsCSPad.h"
 
 
 //		---------------------
@@ -116,10 +110,13 @@ private:
 	int p_LUTx;
 	int p_LUTy;
 	
+	std::string p_outputPrefix;
+	
 	arraydataIO *io;
 	
-	array1D *p_pixX;
-	array1D *p_pixY;
+	shared_ptr<array1D> p_pixX_sp;
+	shared_ptr<array1D> p_pixY_sp;
+	
 	array1D *p_mask;
 
 	array2D *p_LUT;
@@ -128,20 +125,7 @@ private:
 	array2D *p_corrAvg;
 	
 	int p_count;
-	
-	//needed for CSPadPixCoords
-	bool			m_tiltIsApplied;
-	
-	//these four are needed for CSPadCalibPars (parser of the calibration data)
-	std::string 	m_calibDir;       	// i.e. /reg/d/psdm/CXI/cxi35711/calib
-	std::string		m_typeGroupName;  	// i.e. CsPad::CalibV1
-	std::string		m_src;         		// Data source set from config file
-	unsigned 		m_runNumber;
-		
-	PSCalib::CSPadCalibPars        *m_cspad_calibpar;		//all calibration information
-	CSPadPixCoords::PixCoords2x1   *m_pix_coords_2x1;		//pixel coordinates for 2x1s
-	CSPadPixCoords::PixCoordsQuad  *m_pix_coords_quad;		//pixel coordinates for quads
-	CSPadPixCoords::PixCoordsCSPad *m_pix_coords_cspad;		//pixel coordinates for whole CSPAD
+
 };
 
 } // namespace kitty
