@@ -111,6 +111,10 @@ private:
 	
 	int p_count;
 	int p_maxHits;
+	
+	int p_useShift;
+	double p_shiftX;
+	double p_shiftY;
 
 	//---------------------------------------------------------------pdsm standard stuff
 	//needed to read data from detector

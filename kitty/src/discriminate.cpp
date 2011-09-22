@@ -65,7 +65,11 @@ discriminate::discriminate (const std::string& name)
 	
 	p_lowerThreshold 	= config("lowerThreshold", 			0);
 	p_upperThreshold 	= config("upperThreshold", 			100000);
-	p_maxHits			= config("maxHits",					10000000);	
+	p_maxHits			= config("maxHits",					10000000);
+	
+	p_useShift			= config("useShift",				1);
+	p_shiftX			= config("shiftX",					-867.355);
+	p_shiftY			= config("shiftY",					-862.758);	
 	
 	p_count = 0;
 	p_skipcount = 0;
@@ -105,6 +109,10 @@ discriminate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "maxHits = " << p_maxHits );
 	MsgLog(name(), info, "lowerThreshold = " << p_lowerThreshold );
 	MsgLog(name(), info, "upperThreshold = " << p_upperThreshold );
+	MsgLog(name(), info, "useShift = " << p_useShift );
+	MsgLog(name(), info, "shiftX = " << p_shiftX );
+	MsgLog(name(), info, "shiftY = " << p_shiftY );
+	
 	
 	MsgLog(name(), info, "nRowsPerASIC = " << nRowsPerASIC );
 	MsgLog(name(), info, "nColsPerASIC = " << nColsPerASIC ); 
@@ -144,12 +152,27 @@ discriminate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
 	
 	//shift pixel arrays to be centered around incoming beam at (0, 0)
+	//this only works exactly, when the beam was exactly centered in the CSPAD
+	//otherwise, use manual correction of shiftX & shiftY below
 	double shift_X_um = (pixX_um_sp->calcMin()+pixX_um_sp->calcMax())/2;
 	double shift_Y_um = (pixY_um_sp->calcMin()+pixY_um_sp->calcMax())/2;
 	double shift_X_int = (pixX_int_sp->calcMin()+pixX_int_sp->calcMax())/2;
 	double shift_Y_int = (pixY_int_sp->calcMin()+pixY_int_sp->calcMax())/2;
 	double shift_X_pix = (pixX_pix_sp->calcMin()+pixX_pix_sp->calcMax())/2;
 	double shift_Y_pix = (pixY_pix_sp->calcMin()+pixY_pix_sp->calcMax())/2;
+	
+	if (p_useShift){
+		//pixel size values estimated from the read out arrays above, seems about right
+		const double pixelSizeX_um = 109.92;
+		const double pixelSizeY_um = 109.92;
+		shift_X_um = p_shiftX * pixelSizeX_um;
+		shift_Y_um = p_shiftX * pixelSizeY_um;
+		shift_X_int = p_shiftX;
+		shift_Y_int = p_shiftY;
+		shift_X_pix = p_shiftX;
+		shift_Y_pix = p_shiftY;
+	}
+	
 	pixX_um_sp->subtractValue( shift_X_um );
 	pixY_um_sp->subtractValue( shift_Y_um );
 	pixX_int_sp->subtractValue( shift_X_int );
