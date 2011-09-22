@@ -30,6 +30,14 @@
 //------------------------------------
 // Collaborating Class Declarations --
 //------------------------------------
+#include "PSCalib/CSPadCalibPars.h"
+
+#include "CSPadPixCoords/QuadParameters.h"
+#include "CSPadPixCoords/PixCoords2x1.h"
+#include "CSPadPixCoords/PixCoordsQuad.h"
+#include "CSPadPixCoords/PixCoordsCSPad.h"
+
+
 
 //		---------------------
 // 		-- Class Interface --
@@ -101,17 +109,24 @@ private:
 	
 	std::vector<double> p_hitInt;
 	
+	int p_count;
+	int p_maxHits;
 
-	std::string m_source;         // i.e. CxiDs1.0:Cspad.0
-
-	Source   m_src;         // Data source set from config file
-	Pds::Src m_actualSrc;
-	unsigned m_runNumber;
-	unsigned m_maxEvents;
-	bool     m_filter;
-
-	long     m_count;
+	//---------------------------------------------------------------pdsm standard stuff
+	//needed to read data from detector
+	std::string		m_src;         		// Data source set from config file, i.e. CxiDs1.0:Cspad.0
+	Pds::Src		m_actualSrc;
 	
+	//needed for CSPadCalibPars (parser of the calibration data)
+	std::string 	m_calibDir;       	// i.e. /reg/d/psdm/CXI/cxi35711/calib
+	std::string		m_typeGroupName;  	// i.e. CsPad::CalibV1
+	unsigned		m_runNumber;
+	bool			m_tiltIsApplied;
+		
+	PSCalib::CSPadCalibPars        *m_cspad_calibpar;		//all calibration information
+	CSPadPixCoords::PixCoords2x1   *m_pix_coords_2x1;		//pixel coordinates for 2x1s
+	CSPadPixCoords::PixCoordsQuad  *m_pix_coords_quad;		//pixel coordinates for quads
+	CSPadPixCoords::PixCoordsCSPad *m_pix_coords_cspad;		//pixel coordinates for whole CSPAD	
 };
 
 } // namespace kitty
