@@ -52,7 +52,7 @@ makemask::makemask (const std::string& name)
 	
 	p_badPixelLowerBoundary	= config   ("badPixelLowerBoundary", 	0);
 	p_badPixelUpperBoundary	= config   ("badPixelUpperBoundary", 	1500);
-	p_outputPrefix			= configStr("outputPrefix", 			"");
+	p_outputPrefix			= configStr("outputPrefix", 			"mask");
 	p_mask_fn				= configStr("mask", 					"");
 	p_useMask				= config   ("useMask", 					0);
 	p_takeOutThirteenthRow	= config   ("takeOutThirteenthRow", 	1);
