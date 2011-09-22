@@ -30,8 +30,12 @@ namespace kitty {
 	const int nMaxTotalPx = nMaxPxPerQuad * nMaxQuads; 						// 2296960  (2.3e6)
 	
 	const std::string IDSTRING_CSPAD_DATA = "CSPAD_data";
-	const std::string IDSTRING_PX_X_UM = "CSPAD_X_um";
-	const std::string IDSTRING_PX_Y_UM = "CSPAD_Y_um";
+	const std::string IDSTRING_PX_X_um = "CSPAD_X_um";
+	const std::string IDSTRING_PX_Y_um = "CSPAD_Y_um";
+	const std::string IDSTRING_PX_X_int = "CSPAD_X_int";
+	const std::string IDSTRING_PX_Y_int = "CSPAD_Y_int";
+	const std::string IDSTRING_PX_X_pix = "CSPAD_X_pix";
+	const std::string IDSTRING_PX_Y_pix = "CSPAD_Y_pix";
 	
 }//namespace
 
