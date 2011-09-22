@@ -191,17 +191,24 @@ correlate::event(Event& evt, Env& env)
 		//create cross correlator object that takes care of the computations
 		//the arguments that are passed to the constructor determine 2D/3D calculations with/without mask
 		CrossCorrelator *cc = NULL;
+		
+		//-----------------------------ATTENTION----------------------------------		
+		// THE X & Y ARRAYS GENERATED FROM THE CALIBRATION DATA
+		// SEEM TO HAVE SWAPPED MEANING THAN IN CrossCorrelator
+		// SWITCHING THEM AROUND IN THE CONSTRUCTOR SEEM TO MAKE THINGS RIGHT
+		//------------------------------------------------------------------------
+				
 		if (p_autoCorrelateOnly) {
 			if (p_useMask) {											//auto-correlation 2D case, with mask
-				cc = new CrossCorrelator( data.get(), p_pixX_sp.get(), p_pixY_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
+				cc = new CrossCorrelator( data.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
 			} else { 															//auto-correlation 2D case, no mask
-				cc = new CrossCorrelator( data.get(), p_pixX_sp.get(), p_pixY_sp.get(), p_nPhi, p_nQ1 );
+				cc = new CrossCorrelator( data.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1 );
 			}
 		} else {
 			if (p_useMask){												//full cross-correlation 3D case, with mask
-				cc = new CrossCorrelator( data.get(), p_pixX_sp.get(), p_pixY_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
+				cc = new CrossCorrelator( data.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
 			} else { 															//full cross-correlation 3D case, no mask
-				cc = new CrossCorrelator( data.get(), p_pixX_sp.get(), p_pixY_sp.get(), p_nQ1, p_nQ1, p_nQ2);
+				cc = new CrossCorrelator( data.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nQ1, p_nQ1, p_nQ2);
 			}
 		}
 		
@@ -224,8 +231,9 @@ correlate::event(Event& evt, Env& env)
 				cc->calculateXCCA_FAST();
 				break;
 			case 3:
+				//doesn't work yet, because, as of now, the polar() object 
+				//isn't filled in calculatePolarCoordinates(), but in calculateXCCA()
 				MsgLog(name(), info, "DIRECT COORDINATES, FAST XCCA (algorithm 3)");
-				cc->setLookupTable( p_LUT );
 				cc->calculatePolarCoordinates( p_startQ, p_stopQ );
 				cc->calculateXCCA_FAST();
 				break;
