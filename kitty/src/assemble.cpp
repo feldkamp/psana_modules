@@ -47,33 +47,14 @@ namespace kitty {
 //----------------
 assemble::assemble (const std::string& name)
   : Module(name)
-  , m_src()
-{
-  // get the values from configuration or use defaults
-  	m_src				= configStr("source",				"CxiDs1.0:Cspad.0");
-	m_calibDir      	= configStr("calibDir",				"/reg/d/psdm/CXI/cxi35711/calib");
-	m_typeGroupName 	= configStr("typeGroupName",		"CsPad::CalibV1");
-	m_tiltIsApplied 	= config   ("tiltIsApplied",		true);								//tilt angle correction
-	m_runNumber			= config   ("runNumber",     		0);
-	
-	p_outputPrefix	= configStr("outputPrefix", "avg_");
-	p_useNormalization 	= config   ("useNormalization", 0);
+{	
+	p_outputPrefix			= configStr("outputPrefix", 		"avg_");
+	p_useNormalization 		= config   ("useNormalization", 	0);
 
 	io = new arraydataIO;
 	p_sum = new array1D(nMaxTotalPx);
 
 	p_count = 0;	
-	
-	m_cspad_calibpar   = new PSCalib::CSPadCalibPars(m_calibDir, m_typeGroupName, m_src, m_runNumber);
-	m_pix_coords_2x1   = new CSPadPixCoords::PixCoords2x1();
-	m_pix_coords_quad  = new CSPadPixCoords::PixCoordsQuad( m_pix_coords_2x1,  m_cspad_calibpar, m_tiltIsApplied );
-	m_pix_coords_cspad = new CSPadPixCoords::PixCoordsCSPad( m_pix_coords_quad, m_cspad_calibpar, m_tiltIsApplied );	
-	
-//	p_pixX = new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx);
-//	p_pixX = new array1D( m_pix_coords_cspad->getPixCoorArrX_pix(), nMaxTotalPx);	
-
-	p_pixX = new array1D( m_pix_coords_cspad->getPixCoorArrX_int(), nMaxTotalPx);
-	p_pixY = new array1D( m_pix_coords_cspad->getPixCoorArrY_int(), nMaxTotalPx);
 }
 
 //--------------
@@ -83,13 +64,6 @@ assemble::~assemble ()
 {
 	delete io;
 	delete p_sum;
-	delete p_pixX;
-	delete p_pixY;
-	
-	delete m_cspad_calibpar;  
-	delete m_pix_coords_2x1;   
-	delete m_pix_coords_quad;  
-	delete m_pix_coords_cspad; 
 }
 
 
@@ -101,12 +75,14 @@ assemble::beginJob(Event& evt, Env& env)
 	MsgLog(name(), debug, "assemble::beginJob()" );
 	MsgLog(name(), info, "output prefix = '" << p_outputPrefix << "'" );
 	MsgLog(name(), info, "use normalization = '" << p_useNormalization << "'" );
-		
-	shared_ptr<array1D> pixX_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx) );
-	evt.put( pixX_um_sp, IDSTRING_PX_X_UM);
-//	p_pixX = pixX_um_sp.get();
 	
-	
+	p_pixX_sp = evt.get(IDSTRING_PX_X_int);
+	p_pixY_sp = evt.get(IDSTRING_PX_Y_int);
+	if (p_pixX_sp && p_pixY_sp){
+		MsgLog(name(), info, "read data for pixX(n=" << p_pixX_sp->size() << "), pixY(n=" << p_pixY_sp->size() << ")" );
+	}else{
+		MsgLog(name(), warning, "could not get data from pixX(addr=" << p_pixX_sp << ") or pixY(addr=" << p_pixY_sp << ")" );
+	}
 }
 
 
@@ -185,23 +161,23 @@ assemble::endJob(Event& evt, Env& env)
 		p_sum->divideByValue( mean );
 	}
 	
-	
 	//output of 2D raw image (cheetah-style)
 	array2D *raw2D = new array2D();
 	raw2D->createRawImageCSPAD( p_sum );
-	
-	array2D *assembled2D = new array2D();
-	assembled2D->createAssembledImageCSPAD( p_sum, p_pixX, p_pixY );
-	
 	io->writeToEDF( p_outputPrefix+"_1D.edf", p_sum );
 	io->writeToEDF( p_outputPrefix+"_raw2D.edf", raw2D );
-	io->writeToEDF( p_outputPrefix+"_asm2D.edf", assembled2D );
-
 	delete raw2D;
-	delete assembled2D;
+	
+	if (p_pixX_sp && p_pixY_sp){
+		array2D *assembled2D = new array2D();
+		assembled2D->createAssembledImageCSPAD( p_sum, p_pixX_sp.get(), p_pixY_sp.get() );
+		io->writeToEDF( p_outputPrefix+"_asm2D.edf", assembled2D );
+		delete assembled2D;
 
-
-	MsgLog(name(), info, "---complete histogram of averaged data---\n" << p_sum->getHistogramASCII(50) );
+		MsgLog(name(), info, "---complete histogram of averaged data---\n" << p_sum->getHistogramASCII(50) );
+	}else{
+		MsgLog(name(), warning, "could not get data from p_pixX(n=" << p_pixX_sp << ") or p_pixY(addr=" << p_pixY_sp << ")" );
+	}
 }
 
 
