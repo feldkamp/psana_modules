@@ -94,7 +94,6 @@ private:
 	int p_useGain;
 	std::string p_mask_fn;
 	int p_useMask;
-	std::string p_outputPrefix;
 	
 	
 	arraydataIO *io;
