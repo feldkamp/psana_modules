@@ -212,41 +212,16 @@ correlate::event(Event& evt, Env& env)
 			}
 		}
 		
-		//don't know how to read psana's debug level... that could be passed here
-		cc->setDebug(1); 
-
+		//check psana's debug level, set a debug flag for cc, if it's at least 'info'...
+		MsgLogger::MsgLogLevel lvl(MsgLogger::MsgLogLevel::info);
+		if ( MsgLogger::MsgLogger().logging(lvl) ) {
+			cc->setDebug(1);
+		}
+		cc->setLookupTable( p_LUT );
+		
 		MsgLog(name(), info, "calling alg " << p_alg << ", startQ=" << p_startQ << ", stopQ=" << p_stopQ );
 		
-		switch (p_alg) {
-			case 1:
-				MsgLog(name(), info, "DIRECT COORDINATES, DIRECT XCCA (algorithm 1)");
-				cc->calculatePolarCoordinates( p_startQ, p_stopQ );
-				cc->calculateSAXS( p_startQ, p_stopQ );
-				cc->calculateXCCA( p_startQ, p_stopQ );	
-			break;
-			case 2:
-				MsgLog(name(), info, "FAST COORDINATES, FAST XCCA (algorithm 2)");
-				cc->setLookupTable( p_LUT );
-				cc->calculatePolarCoordinates_FAST( p_startQ, p_stopQ );
-				cc->calculateXCCA_FAST();
-				break;
-			case 3:
-				//doesn't work yet, because, as of now, the polar() object 
-				//isn't filled in calculatePolarCoordinates(), but in calculateXCCA()
-				MsgLog(name(), info, "DIRECT COORDINATES, FAST XCCA (algorithm 3)");
-				cc->calculatePolarCoordinates( p_startQ, p_stopQ );
-				cc->calculateXCCA_FAST();
-				break;
-			case 4:
-				MsgLog(name(), info, "FAST COORDINATES, DIRECT XCCA (algorithm 4)");
-				cc->setLookupTable( p_LUT );
-				cc->calculatePolarCoordinates_FAST( p_startQ, p_stopQ );
-				cc->calculateXCCA( p_startQ, p_stopQ );
-				break;
-			default:
-				MsgLog(name(), error,  "Choice of algorithm is invalid. Aborting.");
-				return; 
-		}//switch
+		cc->run(p_startQ, p_stopQ, p_alg, true);
 
 		MsgLog(name(), info, "correlation calculation done. writing (single event) files.");
 		if ( p_singleOutput ){

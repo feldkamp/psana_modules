@@ -81,10 +81,15 @@ discriminate::discriminate (const std::string& name)
 	m_pix_coords_quad  = new CSPadPixCoords::PixCoordsQuad( m_pix_coords_2x1,  m_cspad_calibpar, m_tiltIsApplied );
 	m_pix_coords_cspad = new CSPadPixCoords::PixCoordsCSPad( m_pix_coords_quad, m_cspad_calibpar, m_tiltIsApplied );
 	
-	//cout << "------------calib pars---------------" << endl;
-	//m_cspad_calibpar->printCalibPars();
-	//cout << "------------pix coords 2x1-----------" << endl;
-	//m_pix_coords_2x1->print_member_data();
+	//check psana's debug level
+	//....so we can get rid of the verbosity when we actually run a lot of data
+	MsgLogger::MsgLogLevel lvl(MsgLogger::MsgLogLevel::info);
+	if ( MsgLogger::MsgLogger().logging(lvl) ) {
+		cout << "------------calibration data parser---------------" << endl;
+		m_cspad_calibpar->printCalibPars();
+		cout << "------------pix coords 2x1-----------" << endl;
+		m_pix_coords_2x1->print_member_data();
+	}
 }
 
 //--------------
@@ -163,10 +168,9 @@ discriminate::beginJob(Event& evt, Env& env)
 	
 	if (p_useShift){
 		//pixel size values estimated from the read out arrays above, seems about right
-		const double pixelSizeX_um = 109.92;
-		const double pixelSizeY_um = 109.92;
-		shift_X_um = p_shiftX * pixelSizeX_um;
-		shift_Y_um = p_shiftX * pixelSizeY_um;
+		const double pixelSizeXY_um = m_cspad_calibpar->getColSize_um();		// == getRowSize_um(), square pixels (luckily)
+		shift_X_um = p_shiftX * pixelSizeXY_um;
+		shift_Y_um = p_shiftX * pixelSizeXY_um;
 		shift_X_int = p_shiftX;
 		shift_Y_int = p_shiftY;
 		shift_X_pix = p_shiftX;
