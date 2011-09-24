@@ -18,6 +18,7 @@
 //-----------------
 // C/C++ Headers --
 //-----------------
+#include <iomanip>
 
 //-------------------------------
 // Collaborating Class Headers --
@@ -185,7 +186,8 @@ correlate::event(Event& evt, Env& env)
 		MsgLog(name(), info, "read event data of size " << data->size() );
 
 		std::ostringstream osst;
-		osst << "t" << eventId->time();
+//		osst << "t" << eventId->time();
+		osst << std::setfill('0') << std::setw(10) << p_count;
 		string eventname_str = osst.str();
 		
 		//create cross correlator object that takes care of the computations
@@ -225,8 +227,10 @@ correlate::event(Event& evt, Env& env)
 
 		MsgLog(name(), info, "correlation calculation done. writing (single event) files.");
 		if ( p_singleOutput ){
-			io->writeToEDF( "evt"+eventname_str+"_xaca.edf", cc->autoCorr() );
-			io->writeToEDF( "evt"+eventname_str+"_polar.edf", cc->polar() );
+			if ( !(p_count % p_singleOutput) ){
+				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_xaca.edf", cc->autoCorr() );
+				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_polar.edf", cc->polar() );
+			}
 		}
 		
 		MsgLog(name(), info, "updating running sums.");
@@ -273,8 +277,8 @@ correlate::endJob(Event& evt, Env& env)
 	//TIFF image output
 	if (p_tifOut){
 		if (p_autoCorrelateOnly){
-			io->writeToTiff( p_outputPrefix+"_polar.tif", p_polarAvg, 1 );			// 0: unscaled, 1: scaled
-			io->writeToTiff( p_outputPrefix+"_xaca.tif", p_corrAvg, 1 );			// 0: unscaled, 1: scaled
+			io->writeToTiff( p_outputPrefix+"_polarAvg.tif", p_polarAvg, 1 );			// 0: unscaled, 1: scaled
+			io->writeToTiff( p_outputPrefix+"_xacaAvg.tif", p_corrAvg, 1 );			// 0: unscaled, 1: scaled
 		}else{
 			MsgLog(name(), warning, "WARNING. No tiff output for 3D cross-correlation case implemented, yet!" );
 			//one possibility would be to write a stack of tiffs, one for each of the outer q values
@@ -283,8 +287,8 @@ correlate::endJob(Event& evt, Env& env)
 	//EDF output
 	if (p_edfOut){
 		if (p_autoCorrelateOnly){
-			io->writeToEDF( p_outputPrefix+"_polar.edf", p_polarAvg );
-			io->writeToEDF( p_outputPrefix+"_xaca.edf", p_corrAvg );
+			io->writeToEDF( p_outputPrefix+"_polarAvg.edf", p_polarAvg );
+			io->writeToEDF( p_outputPrefix+"_xacaAvg.edf", p_corrAvg );
 		}else{
 			MsgLog(name(), warning, "WARNING. No EDF output for 3D cross-correlation case implemented, yet!" );
 		}
@@ -292,8 +296,8 @@ correlate::endJob(Event& evt, Env& env)
 	//HDF5 output
 	if (p_h5Out){
 		if (p_autoCorrelateOnly){
-			io->writeToHDF5( p_outputPrefix+"_polar.h5", p_polarAvg);
-			io->writeToHDF5( p_outputPrefix+"_xaca.h5", p_corrAvg );
+			io->writeToHDF5( p_outputPrefix+"_polarAvg.h5", p_polarAvg);
+			io->writeToHDF5( p_outputPrefix+"_xacaAvg.h5", p_corrAvg );
 		}else{
 			MsgLog(name(), warning, "WARNING. No HDF5 output for 3D cross-correlation case implemented, yet!" );
 		}
