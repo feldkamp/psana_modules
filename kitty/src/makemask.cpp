@@ -26,6 +26,7 @@
 #include "PSEvt/EventId.h"
 
 #include "kitty/constants.h"
+#include "kitty/util.h"
 
 
 //-----------------------------------------------------------------------
@@ -222,7 +223,7 @@ makemask::endJob(Event& evt, Env& env)
 	io->writeToEDF( p_outputPrefix+"_1D.edf", mask );
 	
 	array2D* mask2D = new array2D;
-	mask2D->createRawImageCSPAD( mask );
+	createRawImageCSPAD( mask, mask2D );
 	io->writeToEDF( p_outputPrefix+"_raw2D.edf", mask2D );
 	delete mask2D;
 	
