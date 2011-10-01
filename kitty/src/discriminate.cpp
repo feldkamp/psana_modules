@@ -24,6 +24,9 @@ using std::setw;
 #include <vector>
 using std::vector;
 
+#include <string>
+using std::string;
+
 //-------------------------------
 // Collaborating Class Headers --
 //-------------------------------
@@ -118,7 +121,7 @@ discriminate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "shiftX = " << p_shiftX );
 	MsgLog(name(), info, "shiftY = " << p_shiftY );
 	
-	
+	MsgLog(name(), info, "------CSPAD info------" );
 	MsgLog(name(), info, "nRowsPerASIC = " << nRowsPerASIC );
 	MsgLog(name(), info, "nColsPerASIC = " << nColsPerASIC ); 
 	MsgLog(name(), info, "nRowsPer2x1 = " << nRowsPer2x1 );
@@ -148,7 +151,7 @@ discriminate::beginJob(Event& evt, Env& env)
 	shared_ptr<array1D> pixY_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_pix(), nMaxTotalPx) );
 	evt.put( pixY_pix_sp, IDSTRING_PX_Y_pix);
 	
-	MsgLog(name(), info, "---read pixel arrays from calib data---");	
+	MsgLog(name(), info, "------read pixel arrays from calib data------");	
 	MsgLog(name(), info, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
 	MsgLog(name(), info, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
 	MsgLog(name(), info, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
@@ -184,14 +187,91 @@ discriminate::beginJob(Event& evt, Env& env)
 	pixX_pix_sp->subtractValue( shift_X_pix );
 	pixY_pix_sp->subtractValue( shift_Y_pix );
 	
-	MsgLog(name(), info, "---shifted pixels arrays---");	
+	MsgLog(name(), info, "------shifted pixels arrays------");	
 	MsgLog(name(), info, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
 	MsgLog(name(), info, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
 	MsgLog(name(), info, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
 	MsgLog(name(), info, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
 	MsgLog(name(), info, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
 	MsgLog(name(), info, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
+
+
+
+	MsgLog(name(), debug, "------list of stored PVs------" );
+	const vector<string>& pvNames = env.epicsStore().pvNames();
+	for (unsigned int i = 0; i < pvNames.size(); i++){
+		MsgLog(name(), debug, pvNames.at(i) );
+	}
+	
+	MsgLog(name(), info, "------list of read out PVs------" );
+	//compile a list of general PVs that need to be read out for this job (and don't change for each event)
+	vector<string> jobPVs;						// vector for list of PVs
+	vector<string> jobDesc;						// vector for PV description
+	jobPVs.push_back("CXI:DS1:MMS:06");			
+	jobDesc.push_back("detector position");
+	
+	jobPVs.push_back("BEND:DMP1:400:BDES");			
+	jobDesc.push_back("electron beam energy");
+	
+	jobPVs.push_back("SIOC:SYS0:ML00:AO289");			
+	jobDesc.push_back("Vernier energy");
+	
+	jobPVs.push_back("BPMS:DMP1:199:TMIT1H");			
+	jobDesc.push_back("particle N_electrons");
+
+	jobPVs.push_back("EVNT:SYS0:1:LCLSBEAMRATE");			
+	jobDesc.push_back("LCLS repetition rate");
+		
+	jobPVs.push_back("SIOC:SYS0:ML00:AO195");			
+	jobDesc.push_back("peak current after second bunch compressor");
+	
+	jobPVs.push_back("SIOC:SYS0:ML00:AO820");			
+	jobDesc.push_back("pulse length");
+	
+	jobPVs.push_back("SIOC:SYS0:ML00:AO569");			
+	jobDesc.push_back("ebeam energy loss converted to photon mJ");
+	
+	jobPVs.push_back("SIOC:SYS0:ML00:AO580");			
+	jobDesc.push_back("calculated number of photons");
+	
+	jobPVs.push_back("SIOC:SYS0:ML00:AO541");			
+	jobDesc.push_back("photon beam energy");
+	
+	jobPVs.push_back("SIOC:SYS0:ML00:AO627");			
+	jobDesc.push_back("photon beam energy");
+	
+	jobPVs.push_back("SIOC:SYS0:ML00:AO192");			
+	jobDesc.push_back("wavelength");
+	
+	
+	vector<double> jobVals;						// vector for corresponding values
+	jobVals.assign(jobPVs.size(), 0.);			// set all values of PVs to zero initially
+	
+	for (unsigned int i = 0; i < jobPVs.size(); i++){
+		try{
+			jobVals.at(i) = env.epicsStore().value(jobPVs.at(i));
+			MsgLog(name(), info, setw(3) << "#" << i << " " 
+				<< setw(26) << jobPVs.at(i) << " = " 
+				<< setw(12) << jobVals.at(i) 
+				<< " (" << jobDesc.at(i) << ")" );
+		}catch(...){
+			MsgLog(name(), warning, "PV " << jobPVs.at(i) << " (" << jobDesc.at(i) << ") doesn't exist." );
+		}
+	}
+	
+	MsgLog(name(), info, "------quantities derived from PVs------" );
+	//--------------------from cheetah---------------------------------
+	/* When encoder reads -500mm, detector is at its closest possible
+	 * position to the specimen, and is 79mm from the centre of the 
+	 * 8" flange where the injector is mounted.  The injector itself is
+	 * about 4mm further away from the detector than this. */
+	double detZ = 500.0 + jobVals.at(0) + 79.0;
+	MsgLog(name(), info, "detZ = " << detZ );
+	
+	MsgLog(name(), info, " ");
 }
+
+
 
 
 /// ------------------------------------------------------------------------------------------------
@@ -220,6 +300,23 @@ discriminate::event(Event& evt, Env& env)
 {
 	ostringstream evtinfo;
 	evtinfo <<  "# " << p_count << ":  ";
+	
+	//compile a list of PVs that need to be read out for each event 
+	// (works, but commented out since it's not needed right now)
+//	vector<string> eventPVs;						// vector for list of PVs
+//	eventPVs.push_back("BEAM:LCLS:ELEC:Q");
+//	
+//	vector<double> eventVals;						// vector for corresponding values
+//	eventVals.assign(eventPVs.size(), 0.);			// set all to zero
+//	
+//	for (unsigned int i = 0; i < eventPVs.size(); i++){
+//		try{
+//			eventVals.at(i) = env.epicsStore().value(eventPVs.at(i));
+//			MsgLog(name(), info, eventPVs.at(i) << " = " << eventVals.at(i) );
+//		}catch(...){
+//			MsgLog(name(), warning, "PV " << eventPVs.at(i) << " doesn't exist." );
+//		}
+//	}
 	
 	double datasum = 0.;
 	int pxsum = 0;
