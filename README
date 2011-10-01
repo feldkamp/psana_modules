@@ -13,14 +13,14 @@ To build these modules on LCLS computers, you will need the "giraffe" library, a
 
 
 
-The new release directory was created on 2-Sep-2011
+The release directory was created on 2-Sep-2011
 (sit_release = ana-0.3.22)
 
----execute the following on LCLS machines to create a new psana release directory, build an example module and test it:
+---execute the following on LCLS machines to create a fresh psana release directory, build an example module and test it:
 
     kinit
-    newrel ana-current ananew
-    cd ananew/
+    newrel ana-current ana
+    cd ana/
     sit_setup
     newpkg kitty
     mkdir kitty/src
