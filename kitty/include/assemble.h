@@ -104,6 +104,10 @@ private:
 	shared_ptr<array1D> p_pixX_sp;
 	shared_ptr<array1D> p_pixY_sp;
 
+	int p_tifOut;
+	int p_edfOut;
+	int p_h5Out;
+
 	int p_count;
 };
 

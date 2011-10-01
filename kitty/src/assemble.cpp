@@ -26,6 +26,7 @@
 #include "PSEvt/EventId.h"
 
 #include "kitty/constants.h"
+#include "kitty/util.h"
 
 
 //-----------------------------------------------------------------------
@@ -49,6 +50,9 @@ assemble::assemble (const std::string& name)
   : Module(name)
 {	
 	p_outputPrefix			= configStr("outputPrefix", 		"avg_");
+	p_tifOut 				= config   ("tifOut", 				0);
+	p_edfOut 				= config   ("edfOut", 				1);
+	p_h5Out 				= config   ("h5Out", 				0);
 	p_useNormalization 		= config   ("useNormalization", 	0);
 
 	io = new arraydataIO;
@@ -74,6 +78,9 @@ assemble::beginJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug, "assemble::beginJob()" );
 	MsgLog(name(), info, "output prefix = '" << p_outputPrefix << "'" );
+	MsgLog(name(), info, "tifOut            = '" << p_tifOut << "'" );
+	MsgLog(name(), info, "edfOut            = '" << p_edfOut << "'" );
+	MsgLog(name(), info, "h5Out             = '" << p_h5Out << "'" );
 	MsgLog(name(), info, "use normalization = '" << p_useNormalization << "'" );
 	
 	p_pixX_sp = evt.get(IDSTRING_PX_X_int);
@@ -157,27 +164,37 @@ assemble::endJob(Event& evt, Env& env)
 		p_sum->divideByValue( mean );
 	}
 	if (p_useNormalization == 2){
-		double mean = p_sum->calcMax();
-		p_sum->divideByValue( mean );
+		double max = p_sum->calcMax();
+		p_sum->divideByValue( max );
 	}
-	
-	//output of 2D raw image (cheetah-style)
-	array2D *raw2D = new array2D();
-	raw2D->createRawImageCSPAD( p_sum );
-	io->writeToEDF( p_outputPrefix+"_1D.edf", p_sum );
-	io->writeToEDF( p_outputPrefix+"_raw2D.edf", raw2D );
-	delete raw2D;
-	
-	if (p_pixX_sp && p_pixY_sp){
-		array2D *assembled2D = new array2D();
-		assembled2D->createAssembledImageCSPAD( p_sum, p_pixX_sp.get(), p_pixY_sp.get() );
-		io->writeToEDF( p_outputPrefix+"_asm2D.edf", assembled2D );
-		delete assembled2D;
 
-		MsgLog(name(), info, "---complete histogram of averaged data---\n" << p_sum->getHistogramASCII(50) );
-	}else{
-		MsgLog(name(), warning, "could not get data from p_pixX(n=" << p_pixX_sp << ") or p_pixY(addr=" << p_pixY_sp << ")" );
+	//assemble ASICs
+	array2D *assembled2D = new array2D;
+	createAssembledImageCSPAD( p_sum, p_pixX_sp.get(), p_pixY_sp.get(), assembled2D );
+		
+	//output of 2D raw image (cheetah-style)
+	array2D *raw2D = new array2D;
+	createRawImageCSPAD( p_sum, raw2D );
+	
+	if (p_edfOut){
+		io->writeToEDF( p_outputPrefix+"_1D.edf", p_sum );
+		io->writeToEDF( p_outputPrefix+"_raw2D.edf", raw2D );
+		io->writeToEDF( p_outputPrefix+"_asm2D.edf", assembled2D );
 	}
+	if (p_h5Out){
+		//io->writeToHDF5( p_outputPrefix+"_1D.h5", p_sum );
+		io->writeToHDF5( p_outputPrefix+"_raw2D.h5", raw2D );
+		io->writeToHDF5( p_outputPrefix+"_asm2D.h5", assembled2D );
+	}
+	if (p_tifOut){
+		//io->writeToTiff( p_outputPrefix+"_1D.tif", p_sum );
+		io->writeToTiff( p_outputPrefix+"_raw2D.tif", raw2D );
+		io->writeToTiff( p_outputPrefix+"_asm2D.tif", assembled2D );
+	}
+	delete raw2D;
+	delete assembled2D;
+	
+	MsgLog(name(), info, "---complete histogram of averaged data---\n" << p_sum->getHistogramASCII(50) );
 }
 
 
