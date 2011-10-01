@@ -18,6 +18,8 @@
 //-----------------
 // C/C++ Headers --
 //-----------------
+#include <string>
+using std::string;
 
 //-------------------------------
 // Collaborating Class Headers --
@@ -26,7 +28,7 @@
 #include "PSEvt/EventId.h"
 
 #include "kitty/constants.h"
-
+#include "kitty/util.h"
 
 //-----------------------------------------------------------------------
 // Local Macros, Typedefs, Structures, Unions and Forward Declarations --
@@ -95,15 +97,28 @@ correct::beginJob(Event& evt, Env& env)
 		if (p_back_fn != ""){
 			delete p_back;
 			p_back = new array1D;
-			int fail = io->readFromEDF( p_back_fn, p_back );
-			MsgLog(name(), info, "histogram of background read\n" << p_back->getHistogramASCII(20) );
-			if (fail){
+			int fail = 0;
+			string ext = getExt( p_back_fn );
+			if (ext == "edf"){											// read 1D
+				fail = io->readFromEDF( p_back_fn, p_back );
+			}else if (ext == "h5" || ext == "hdf5" || ext == "H5"){		// read 2D 'raw' image
+				array2D *from_file = new array2D;
+				fail = io->readFromHDF5( p_back_fn, from_file );
+				create1DFromRawImageCSPAD(from_file, p_back);
+				delete from_file;
+			}else{
+				MsgLog(name(), error, "Extension '" << ext << "' found in '" << p_back_fn << "' is not valid. "
+					<< "Should be edf or h5 ");
+			}
+			if (!fail){
+				MsgLog(name(), info, "histogram of background read\n" << p_back->getHistogramASCII(20) );
+			}else{
 				MsgLog(name(), warning, "Could not read background, continuing without background subtraction!");
 				p_useBack = 0;	
 			}
 		}else{
-				MsgLog(name(), warning, "No background file specified in config file, continuing without background subtraction!");
-				p_useBack = 0;			
+			MsgLog(name(), warning, "No background file specified in config file, continuing without background subtraction!");
+			p_useBack = 0;			
 		}
 	}
 
@@ -112,15 +127,28 @@ correct::beginJob(Event& evt, Env& env)
 		if (p_gain_fn != ""){
 			delete p_gain;
 			p_gain = new array1D;
-			int fail = io->readFromEDF( p_gain_fn, p_gain );
-			MsgLog(name(), info, "histogram of gain map read\n" << p_gain->getHistogramASCII(20) );
-			if (fail){
+			int fail = 0;
+			string ext = getExt( p_gain_fn );
+			if (ext == "edf"){									// read 1D
+				fail = io->readFromEDF( p_gain_fn, p_gain );
+			}else if (ext == "h5" || ext == "hdf5" || ext == "H5"){		// read 2D 'raw' image
+				array2D *from_file = new array2D;
+				fail = io->readFromHDF5( p_gain_fn, from_file );
+				create1DFromRawImageCSPAD(from_file, p_gain);
+				delete from_file;
+			}else{
+				MsgLog(name(), error, "Extension '" << ext << "' found in '" << p_gain_fn << "' is not valid. "
+					<< "Should be edf or h5 ");
+			}
+			if (!fail){
+				MsgLog(name(), info, "histogram of gain map read\n" << p_gain->getHistogramASCII(20) );	
+			}else{
 				MsgLog(name(), warning, "Could not read gainmap, continuing without gain correction!");
 				p_useGain = 0;	
 			}
 		}else{
-				MsgLog(name(), warning, "No gain file specified in config file, continuing without gain correction!");
-				p_useGain = 0;			
+			MsgLog(name(), warning, "No gain file specified in config file, continuing without gain correction!");
+			p_useGain = 0;			
 		}
 	}
 	
@@ -129,15 +157,28 @@ correct::beginJob(Event& evt, Env& env)
 		if (p_mask_fn != ""){
 			delete p_mask;
 			p_mask = new array1D;
-			int fail = io->readFromEDF( p_mask_fn, p_mask );
-			MsgLog(name(), info, "histogram of mask read\n" << p_mask->getHistogramASCII(2) );
-			if (fail){
+			int fail = 0;
+			string ext = getExt( p_mask_fn );
+			if (ext == "edf"){									// read 1D
+				fail = io->readFromEDF( p_mask_fn, p_mask );
+			}else if (ext == "h5" || ext == "hdf5" || ext == "H5"){		// read 2D 'raw' image
+				array2D *from_file = new array2D;
+				fail = io->readFromHDF5( p_mask_fn, from_file );
+				create1DFromRawImageCSPAD(from_file, p_mask);
+				delete from_file;
+			}else{
+				MsgLog(name(), error, "Extension '" << ext << "' found in '" << p_mask_fn << "' is not valid. "
+					<< "Should be edf or h5 ");
+			}
+			if (!fail){
+				MsgLog(name(), info, "histogram of mask read\n" << p_mask->getHistogramASCII(2) );	
+			}else{
 				MsgLog(name(), warning, "Could not read mask, continuing without mask correction!");
 				p_useMask = 0;	
 			}
 		}else{
-				MsgLog(name(), warning, "No mask file specified in config file, continuing without mask correction!");
-				p_useMask = 0;			
+			MsgLog(name(), warning, "No mask file specified in config file, continuing without mask correction!");
+			p_useMask = 0;			
 		}
 	}
 		
