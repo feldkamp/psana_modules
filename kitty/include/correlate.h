@@ -124,6 +124,9 @@ private:
 	array2D *p_polarAvg;
 	array2D *p_corrAvg;
 	
+	array1D *p_qAvg;
+	array1D *p_iAvg;
+	
 	int p_count;
 
 };

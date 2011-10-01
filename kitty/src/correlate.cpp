@@ -81,6 +81,9 @@ correlate::correlate (const std::string& name)
 	p_polarAvg = new array2D;
 	p_corrAvg = new array2D;
 	
+	p_qAvg = new array1D;
+	p_iAvg = new array1D;
+	
 	p_count = 0;
 }
 
@@ -95,6 +98,8 @@ correlate::~correlate ()
 	delete p_LUT;
 	delete p_polarAvg;
 	delete p_corrAvg;
+	delete p_qAvg;
+	delete p_iAvg;
 }
 
 
@@ -149,7 +154,10 @@ correlate::beginJob(Event& evt, Env& env)
 	p_polarAvg = new array2D( p_nQ1, p_nPhi );
 	delete p_corrAvg;
 	p_corrAvg = new array2D( p_nQ1, p_nLag );
-	
+	delete p_qAvg;
+	p_qAvg = new array1D( p_nQ1 );
+	delete p_iAvg;
+	p_iAvg = new array1D( p_nQ1 );
 }
 
 
@@ -179,11 +187,11 @@ correlate::event(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correlate::event()" );
 
-	shared_ptr<array1D> data = evt.get(IDSTRING_CSPAD_DATA);
+	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
 	shared_ptr<PSEvt::EventId> eventId = evt.get();
 	
-	if (data){
-		MsgLog(name(), info, "read event data of size " << data->size() );
+	if (data_sp){
+		MsgLog(name(), info, "read event data of size " << data_sp->size() );
 
 		std::ostringstream osst;
 //		osst << "t" << eventId->time();
@@ -202,15 +210,15 @@ correlate::event(Event& evt, Env& env)
 				
 		if (p_autoCorrelateOnly) {
 			if (p_useMask) {											//auto-correlation 2D case, with mask
-				cc = new CrossCorrelator( data.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
+				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
 			} else { 															//auto-correlation 2D case, no mask
-				cc = new CrossCorrelator( data.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1 );
+				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1 );
 			}
 		} else {
 			if (p_useMask){												//full cross-correlation 3D case, with mask
-				cc = new CrossCorrelator( data.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
+				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
 			} else { 															//full cross-correlation 3D case, no mask
-				cc = new CrossCorrelator( data.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nQ1, p_nQ1, p_nQ2);
+				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nQ1, p_nQ1, p_nQ2);
 			}
 		}
 		
@@ -230,12 +238,16 @@ correlate::event(Event& evt, Env& env)
 			if ( !(p_count % p_singleOutput) ){
 				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_xaca.edf", cc->autoCorr() );
 				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_polar.edf", cc->polar() );
+				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_q.edf", cc->qAvg() );
+				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_i.edf", cc->iAvg() );
 			}
 		}
 		
 		MsgLog(name(), info, "updating running sums.");
 		p_polarAvg->addArrayElementwise( cc->polar() );
 		p_corrAvg->addArrayElementwise( cc->autoCorr() );
+		p_qAvg->addArrayElementwise( cc->qAvg() );
+		p_iAvg->addArrayElementwise( cc->iAvg() );
 		
 		delete cc;
 		
@@ -273,6 +285,12 @@ correlate::endJob(Event& evt, Env& env)
 	MsgLog(name(), debug,  "correlate::endJob()" );
 	p_polarAvg->divideByValue( p_count );
 	p_corrAvg->divideByValue( p_count );
+	p_qAvg->divideByValue( p_count );
+	p_iAvg->divideByValue( p_count );
+	
+	//convert SAXS output to 2D, so they can be written to disk as images (with y-dim == 1)
+	array2D* qAvg2D = new array2D( p_qAvg, p_qAvg->dim1(), 1 );
+	array2D* iAvg2D = new array2D( p_iAvg, p_iAvg->dim1(), 1 );
 	
 	//TIFF image output
 	if (p_tifOut){
@@ -283,6 +301,9 @@ correlate::endJob(Event& evt, Env& env)
 			MsgLog(name(), warning, "WARNING. No tiff output for 3D cross-correlation case implemented, yet!" );
 			//one possibility would be to write a stack of tiffs, one for each of the outer q values
 		}
+		
+		io->writeToTiff( p_outputPrefix+"_qAvg.edf", qAvg2D, 1 );
+		io->writeToTiff( p_outputPrefix+"_iAvg.edf", iAvg2D, 1 );
 	}
 	//EDF output
 	if (p_edfOut){
@@ -292,6 +313,8 @@ correlate::endJob(Event& evt, Env& env)
 		}else{
 			MsgLog(name(), warning, "WARNING. No EDF output for 3D cross-correlation case implemented, yet!" );
 		}
+		io->writeToEDF( p_outputPrefix+"_qAvg.edf", qAvg2D );
+		io->writeToEDF( p_outputPrefix+"_iAvg.edf", iAvg2D );
 	}
 	//HDF5 output
 	if (p_h5Out){
@@ -301,7 +324,12 @@ correlate::endJob(Event& evt, Env& env)
 		}else{
 			MsgLog(name(), warning, "WARNING. No HDF5 output for 3D cross-correlation case implemented, yet!" );
 		}
+		io->writeToHDF5( p_outputPrefix+"_qAvg.edf", qAvg2D );
+		io->writeToHDF5( p_outputPrefix+"_iAvg.edf", iAvg2D );
 	}
+	
+	delete qAvg2D;
+	delete iAvg2D;
 }
 
 } // namespace kitty
