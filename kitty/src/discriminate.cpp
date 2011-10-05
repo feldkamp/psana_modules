@@ -72,7 +72,8 @@ discriminate::discriminate (const std::string& name)
 	
 	p_useShift			= config("useShift",				1);
 	p_shiftX			= config("shiftX",					-867.355);
-	p_shiftY			= config("shiftY",					-862.758);	
+	p_shiftY			= config("shiftY",					-862.758);
+	p_detOffset 		= config("detOffset",				500.0 + 63.0);						// see explanation in header
 	
 	p_count = 0;
 	p_skipcount = 0;
@@ -120,6 +121,7 @@ discriminate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "useShift = " << p_useShift );
 	MsgLog(name(), info, "shiftX = " << p_shiftX );
 	MsgLog(name(), info, "shiftY = " << p_shiftY );
+	MsgLog(name(), info, "detOffset = " << p_detOffset );
 	
 	MsgLog(name(), info, "------CSPAD info------" );
 	MsgLog(name(), info, "nRowsPerASIC = " << nRowsPerASIC );
@@ -131,70 +133,6 @@ discriminate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "nPxPer2x1 = " << nPxPer2x1 ); 
 	MsgLog(name(), info, "nMaxPxPerQuad = " << nMaxPxPerQuad ); 
 	MsgLog(name(), info, "nMaxTotalPx = " << nMaxTotalPx ); 
-	
-	//---read calibration information arrays and add them to the event---
-	//   in microns
-	shared_ptr<array1D> pixX_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx) );
-	evt.put( pixX_um_sp, IDSTRING_PX_X_um);
-	shared_ptr<array1D> pixY_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_um(), nMaxTotalPx) );
-	evt.put( pixY_um_sp, IDSTRING_PX_Y_um);
-	
-	//   in pixel index
-	shared_ptr<array1D> pixX_int_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_int(), nMaxTotalPx) );
-	evt.put( pixX_int_sp, IDSTRING_PX_X_int);
-	shared_ptr<array1D> pixY_int_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_int(), nMaxTotalPx) );
-	evt.put( pixY_int_sp, IDSTRING_PX_Y_int);
-
-	//   in pix (whatever that is)
-	shared_ptr<array1D> pixX_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_pix(), nMaxTotalPx) );
-	evt.put( pixX_pix_sp, IDSTRING_PX_X_pix);
-	shared_ptr<array1D> pixY_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_pix(), nMaxTotalPx) );
-	evt.put( pixY_pix_sp, IDSTRING_PX_Y_pix);
-	
-	MsgLog(name(), info, "------read pixel arrays from calib data------");	
-	MsgLog(name(), info, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
-	
-	//shift pixel arrays to be centered around incoming beam at (0, 0)
-	//this only works exactly, when the beam was exactly centered in the CSPAD
-	//otherwise, use manual correction of shiftX & shiftY below
-	double shift_X_um = (pixX_um_sp->calcMin()+pixX_um_sp->calcMax())/2;
-	double shift_Y_um = (pixY_um_sp->calcMin()+pixY_um_sp->calcMax())/2;
-	double shift_X_int = (pixX_int_sp->calcMin()+pixX_int_sp->calcMax())/2;
-	double shift_Y_int = (pixY_int_sp->calcMin()+pixY_int_sp->calcMax())/2;
-	double shift_X_pix = (pixX_pix_sp->calcMin()+pixX_pix_sp->calcMax())/2;
-	double shift_Y_pix = (pixY_pix_sp->calcMin()+pixY_pix_sp->calcMax())/2;
-	
-	if (p_useShift){
-		//pixel size values estimated from the read out arrays above, seems about right
-		const double pixelSizeXY_um = m_cspad_calibpar->getColSize_um();		// == getRowSize_um(), square pixels (luckily)
-		shift_X_um = p_shiftX * pixelSizeXY_um;
-		shift_Y_um = p_shiftX * pixelSizeXY_um;
-		shift_X_int = p_shiftX;
-		shift_Y_int = p_shiftY;
-		shift_X_pix = p_shiftX;
-		shift_Y_pix = p_shiftY;
-	}
-	
-	pixX_um_sp->subtractValue( shift_X_um );
-	pixY_um_sp->subtractValue( shift_Y_um );
-	pixX_int_sp->subtractValue( shift_X_int );
-	pixY_int_sp->subtractValue( shift_Y_int );
-	pixX_pix_sp->subtractValue( shift_X_pix );
-	pixY_pix_sp->subtractValue( shift_Y_pix );
-	
-	MsgLog(name(), info, "------shifted pixels arrays------");	
-	MsgLog(name(), info, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
-
 
 
 	MsgLog(name(), debug, "------list of stored PVs------" );
@@ -259,16 +197,88 @@ discriminate::beginJob(Event& evt, Env& env)
 		}
 	}
 	
-	MsgLog(name(), info, "------quantities derived from PVs------" );
-	//--------------------from cheetah---------------------------------
-	/* When encoder reads -500mm, detector is at its closest possible
-	 * position to the specimen, and is 79mm from the centre of the 
-	 * 8" flange where the injector is mounted.  The injector itself is
-	 * about 4mm further away from the detector than this. */
-	double detZ = 500.0 + jobVals.at(0) + 79.0;
-	MsgLog(name(), info, "detZ = " << detZ );
-	
+	MsgLog(name(), info, "------quantities derived from selected PVs------" );
+	double detZ = p_detOffset + (double) env.epicsStore().value( "CXI:DS1:MMS:06" );
+	double two_k = env.epicsStore().value( "SIOC:SYS0:ML00:AO192" );
+	MsgLog(name(), info, "detZ = " << detZ << " mm");				
+	MsgLog(name(), info, "2*k = " << 2*2*M_PI/detZ * 1e6 << "nm^-1" );
 	MsgLog(name(), info, " ");
+	
+	//---read calibration information arrays and add them to the event---
+	//---possibly take some of this out if not needed and memory is needed
+	//
+	// in microns
+	shared_ptr<array1D> pixX_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx) );
+	evt.put( pixX_um_sp, IDSTRING_PX_X_um);
+	shared_ptr<array1D> pixY_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_um(), nMaxTotalPx) );
+	evt.put( pixY_um_sp, IDSTRING_PX_Y_um);
+	
+	// in pixel index (integer pixel position only)
+	shared_ptr<array1D> pixX_int_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_int(), nMaxTotalPx) );
+	evt.put( pixX_int_sp, IDSTRING_PX_X_int);
+	shared_ptr<array1D> pixY_int_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_int(), nMaxTotalPx) );
+	evt.put( pixY_int_sp, IDSTRING_PX_Y_int);
+
+	// in pix (pixel index, including fraction)
+	shared_ptr<array1D> pixX_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_pix(), nMaxTotalPx) );
+	evt.put( pixX_pix_sp, IDSTRING_PX_X_pix);
+	shared_ptr<array1D> pixY_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_pix(), nMaxTotalPx) );
+	evt.put( pixY_pix_sp, IDSTRING_PX_Y_pix);
+	
+	
+	MsgLog(name(), info, "------read pixel arrays from calib data------");	
+	MsgLog(name(), info, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
+	
+	//shift pixel arrays to be centered around incoming beam at (0, 0)
+	//this only works exactly, when the beam was exactly centered in the CSPAD
+	//otherwise, use manual correction of shiftX & shiftY below
+	double shift_X_um = (pixX_um_sp->calcMin()+pixX_um_sp->calcMax())/2;
+	double shift_Y_um = (pixY_um_sp->calcMin()+pixY_um_sp->calcMax())/2;
+	double shift_X_int = (pixX_int_sp->calcMin()+pixX_int_sp->calcMax())/2;
+	double shift_Y_int = (pixY_int_sp->calcMin()+pixY_int_sp->calcMax())/2;
+	double shift_X_pix = (pixX_pix_sp->calcMin()+pixX_pix_sp->calcMax())/2;
+	double shift_Y_pix = (pixY_pix_sp->calcMin()+pixY_pix_sp->calcMax())/2;
+	
+	if (p_useShift){
+		//pixel size values estimated from the read out arrays above, seems about right
+		const double pixelSizeXY_um = m_cspad_calibpar->getColSize_um();		// == getRowSize_um(), square pixels (luckily)
+		shift_X_um = p_shiftX * pixelSizeXY_um;
+		shift_Y_um = p_shiftX * pixelSizeXY_um;
+		shift_X_int = p_shiftX;
+		shift_Y_int = p_shiftY;
+		shift_X_pix = p_shiftX;
+		shift_Y_pix = p_shiftY;
+	}
+	
+	pixX_um_sp->subtractValue( shift_X_um );
+	pixY_um_sp->subtractValue( shift_Y_um );
+	pixX_int_sp->subtractValue( shift_X_int );
+	pixY_int_sp->subtractValue( shift_Y_int );
+	pixX_pix_sp->subtractValue( shift_X_pix );
+	pixY_pix_sp->subtractValue( shift_Y_pix );
+	
+	// create q-value vectors, (inverse nanometers)
+	shared_ptr<array1D> pixX_q_sp ( new array1D( pixX_um_sp.get() ) );
+	shared_ptr<array1D> pixY_q_sp ( new array1D( pixX_um_sp.get() ) );
+	for (unsigned int i = 0; i < pixX_q_sp->size(); i++){
+		pixX_q_sp->set(i, two_k * sin( atan(pixX_um_sp->get(i)/1000.0/detZ) ) );
+		pixY_q_sp->set(i, two_k * sin( atan(pixY_um_sp->get(i)/1000.0/detZ) ) );
+	}
+	
+	MsgLog(name(), info, "------shifted pixels arrays------");	
+	MsgLog(name(), info, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrX_q   min: " << pixX_q_sp->calcMin()   << ", max: " << pixX_q_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_q   min: " << pixY_q_sp->calcMin()   << ", max: " << pixY_q_sp->calcMax() );
 }
 
 

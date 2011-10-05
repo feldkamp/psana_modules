@@ -115,6 +115,21 @@ private:
 	int p_useShift;
 	double p_shiftX;
 	double p_shiftY;
+	double p_detOffset;			// default = 500.0 + 79.0 + 4.0 = 583
+	
+	//-------------comment on detOffset------------------------------------------
+	// At the closest possible position, the stage is at -500mm
+	// By design, that's 63mm away from interaction region (cxi35711 elog post 42531)
+	// Further calibration is required for more accuracy
+	//     |                     ||               ............. ||
+	//     |                     || .............               ||
+	//     v        .............||                             ||
+	// --> X - - - - - - - - - - || - - - - - - - - - - - - - - ||
+	//              .............||                             ||
+	//                           || .............               ||
+	//                           ||               ............. ||
+	//     jet                   close pos                      far pos
+	//    
 
 	//---------------------------------------------------------------pdsm standard stuff
 	//needed to read data from detector
