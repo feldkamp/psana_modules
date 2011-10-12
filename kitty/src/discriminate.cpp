@@ -56,43 +56,70 @@ namespace kitty {
 //----------------
 discriminate::discriminate (const std::string& name)
 	: Module(name)
-	, m_src()
+	, p_useCorrectedData(0)
+	, p_lowerThreshold(0)
+	, p_upperThreshold(0)
+	, p_maxHits(0)
+	, p_skipcount(0)
+	, p_hitcount(0)
+	, p_count(0)
+	, p_useShift(0)	
+	, p_shiftX(0)
+	, p_shiftY(0)
+	, p_detOffset(0)
+	, p_hitInt()
+	, m_dataSourceString("")
+	, m_calibSourceString("")
+	, m_calibDir("")
+	, m_typeGroupName("")
+	, m_runNumber(0)
+	, m_tiltIsApplied(true)
+	, m_cspad_calibpar()
+	, m_pix_coords_2x1()
+	, m_pix_coords_quad()
+	, m_pix_coords_cspad()
 {
 	// get the values from configuration or use defaults
-	m_src				= configStr("source",				"CxiDs1.0:Cspad.0");
+	m_dataSourceString	= configStr("dataSource",			"CxiDs1.0:Cspad.0");
+	m_calibSourceString	= configStr("calibSource",			"CxiDs1.0:Cspad.0");
 	m_calibDir      	= configStr("calibDir",				"/reg/d/psdm/CXI/cxi35711/calib");
 	m_typeGroupName 	= configStr("typeGroupName",		"CsPad::CalibV1");
 	m_tiltIsApplied 	= config   ("tiltIsApplied",		true);								//tilt angle correction
 	m_runNumber			= config   ("runNumber",     		0);
-//	m_src				= m_source;
 	
 	p_lowerThreshold 	= config("lowerThreshold", 			0);
-	p_upperThreshold 	= config("upperThreshold", 			100000);
+	p_upperThreshold 	= config("upperThreshold", 			10000000);
 	p_maxHits			= config("maxHits",					10000000);
 	
+	p_useCorrectedData  = config("useCorrectedData",        1);
 	p_useShift			= config("useShift",				1);
 	p_shiftX			= config("shiftX",					-867.355);
 	p_shiftY			= config("shiftY",					-862.758);
 	p_detOffset 		= config("detOffset",				500.0 + 63.0);						// see explanation in header
+
+	try{
+		MsgLog(name, info, "reading calibration from "
+								<< "\n   calib dir  = '" << m_calibDir << "'"
+								<< "\n   type group = '" << m_typeGroupName << "'"
+								<< "\n   source     = '" << m_calibSourceString << "'"
+								<< "\n   run number = '" << m_runNumber << "'"
+								);
+		m_cspad_calibpar   = new PSCalib::CSPadCalibPars(m_calibDir, m_typeGroupName, m_calibSourceString, m_runNumber);
+		m_pix_coords_2x1   = new CSPadPixCoords::PixCoords2x1();
+		m_pix_coords_quad  = new CSPadPixCoords::PixCoordsQuad( m_pix_coords_2x1,  m_cspad_calibpar, m_tiltIsApplied );
+		m_pix_coords_cspad = new CSPadPixCoords::PixCoordsCSPad( m_pix_coords_quad, m_cspad_calibpar, m_tiltIsApplied );
 	
-	p_count = 0;
-	p_skipcount = 0;
-	p_hitcount = 0;
-	
-	
-	m_cspad_calibpar   = new PSCalib::CSPadCalibPars(m_calibDir, m_typeGroupName, m_src, m_runNumber);
-	m_pix_coords_2x1   = new CSPadPixCoords::PixCoords2x1();
-	m_pix_coords_quad  = new CSPadPixCoords::PixCoordsQuad( m_pix_coords_2x1,  m_cspad_calibpar, m_tiltIsApplied );
-	m_pix_coords_cspad = new CSPadPixCoords::PixCoordsCSPad( m_pix_coords_quad, m_cspad_calibpar, m_tiltIsApplied );
-	
-	//check psana's debug level
-	//....so we can get rid of the verbosity when we actually run a lot of data
-	MsgLogger::MsgLogLevel lvl(MsgLogger::MsgLogLevel::info);
-	if ( MsgLogger::MsgLogger().logging(lvl) ) {
-		cout << "------------calibration data parser---------------" << endl;
-		m_cspad_calibpar->printCalibPars();
-		cout << "------------pix coords 2x1-----------" << endl;
-		m_pix_coords_2x1->print_member_data();
+		//check psana's debug level
+		//....so we can get rid of the verbosity when we actually run a lot of data
+		MsgLogger::MsgLogLevel lvl(MsgLogger::MsgLogLevel::info);
+		if ( MsgLogger::MsgLogger().logging(lvl) ) {
+			cout << "------------calibration data parser---------------" << endl;
+			m_cspad_calibpar->printCalibPars();
+			cout << "------------pix coords 2x1-----------" << endl;
+			m_pix_coords_2x1->print_member_data();
+		}
+	}catch(...){
+		MsgLog(name, error, "Could not retrieve calibration data");
 	}
 }
 
@@ -145,45 +172,50 @@ discriminate::beginJob(Event& evt, Env& env)
 	//compile a list of general PVs that need to be read out for this job (and don't change for each event)
 	vector<string> jobPVs;						// vector for list of PVs
 	vector<string> jobDesc;						// vector for PV description
-	jobPVs.push_back("CXI:DS1:MMS:06");			
-	jobDesc.push_back("detector position");
 	
-	jobPVs.push_back("BEND:DMP1:400:BDES");			
+	jobPVs.push_back("CXI:DS1:MMS:06");									//# 0
+	jobDesc.push_back("detector position");
+	unsigned int detZ_no = 0;
+	
+	jobPVs.push_back("BEND:DMP1:400:BDES");								//# 1
 	jobDesc.push_back("electron beam energy");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO289");			
+	jobPVs.push_back("SIOC:SYS0:ML00:AO289");							//# 2
 	jobDesc.push_back("Vernier energy");
 	
-	jobPVs.push_back("BPMS:DMP1:199:TMIT1H");			
+	jobPVs.push_back("BPMS:DMP1:199:TMIT1H");							//# 3
 	jobDesc.push_back("particle N_electrons");
 
-	jobPVs.push_back("EVNT:SYS0:1:LCLSBEAMRATE");			
+	jobPVs.push_back("EVNT:SYS0:1:LCLSBEAMRATE");						//# 4
 	jobDesc.push_back("LCLS repetition rate");
 		
-	jobPVs.push_back("SIOC:SYS0:ML00:AO195");			
+	jobPVs.push_back("SIOC:SYS0:ML00:AO195");							//# 5
 	jobDesc.push_back("peak current after second bunch compressor");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO820");			
+	jobPVs.push_back("SIOC:SYS0:ML00:AO820");							//# 6
 	jobDesc.push_back("pulse length");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO569");			
+	jobPVs.push_back("SIOC:SYS0:ML00:AO569");							//# 7
 	jobDesc.push_back("ebeam energy loss converted to photon mJ");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO580");			
+	jobPVs.push_back("SIOC:SYS0:ML00:AO580");							//# 8
 	jobDesc.push_back("calculated number of photons");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO541");			
+	jobPVs.push_back("SIOC:SYS0:ML00:AO541");							//# 9
 	jobDesc.push_back("photon beam energy");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO627");			
+	jobPVs.push_back("SIOC:SYS0:ML00:AO627");							//# 10
 	jobDesc.push_back("photon beam energy");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO192");			
-	jobDesc.push_back("wavelength");
+	jobPVs.push_back("SIOC:SYS0:ML00:AO192");							//# 11
+	jobDesc.push_back("wavelength in Angstrom");
+	unsigned int lambda_no = 11;
 	
 	
 	vector<double> jobVals;						// vector for corresponding values
 	jobVals.assign(jobPVs.size(), 0.);			// set all values of PVs to zero initially
+	vector<bool> jobPVvalid;					// keep track of the validity of this PV
+	jobPVvalid.assign(jobPVs.size(), false);
 	
 	for (unsigned int i = 0; i < jobPVs.size(); i++){
 		try{
@@ -192,16 +224,25 @@ discriminate::beginJob(Event& evt, Env& env)
 				<< setw(26) << jobPVs.at(i) << " = " 
 				<< setw(12) << jobVals.at(i) 
 				<< " (" << jobDesc.at(i) << ")" );
+			jobPVvalid.at(i) = true;
 		}catch(...){
 			MsgLog(name(), warning, "PV " << jobPVs.at(i) << " (" << jobDesc.at(i) << ") doesn't exist." );
+			jobPVvalid.at(i) = false;
 		}
 	}
 	
 	MsgLog(name(), info, "------quantities derived from selected PVs------" );
-	double detZ = p_detOffset + (double) env.epicsStore().value( "CXI:DS1:MMS:06" );
-	double two_k = env.epicsStore().value( "SIOC:SYS0:ML00:AO192" );
+	double detZ = 0; 
+	if (jobPVvalid.at(detZ_no) ){
+		detZ = p_detOffset + jobVals.at(detZ_no);
+	}
+	double lambda = 0;
+	if (jobPVvalid.at(lambda_no) ){
+		lambda = jobVals.at(lambda_no);
+	}
+	double two_k = 2*2*M_PI/lambda;								//in units of inv. Angstrom
 	MsgLog(name(), info, "detZ = " << detZ << " mm");				
-	MsgLog(name(), info, "2*k = " << 2*2*M_PI/detZ * 1e6 << "nm^-1" );
+	MsgLog(name(), info, "2*k = " << two_k << "Å^-1" );
 	MsgLog(name(), info, " ");
 	
 	//---read calibration information arrays and add them to the event---
@@ -309,7 +350,7 @@ void
 discriminate::event(Event& evt, Env& env)
 {
 	ostringstream evtinfo;
-	evtinfo <<  "# " << p_count << ":  ";
+	evtinfo <<  "evt#" << p_count << " ";
 	
 	//compile a list of PVs that need to be read out for each event 
 	// (works, but commented out since it's not needed right now)
@@ -331,10 +372,26 @@ discriminate::event(Event& evt, Env& env)
 	double datasum = 0.;
 	int pxsum = 0;
 	
+	std::ostringstream osst;
+//	osst << "t" << eventId->time();
+	osst << std::setfill('0') << std::setw(10) << p_count;
+	shared_ptr<std::string> eventname_sp( new std::string(osst.str()) );
+	evt.put(eventname_sp, IDSTRING_CUSTOM_EVENTNAME);
+	
 	//get CSPAD data from evt object (out of XTC stream)
-	shared_ptr<Psana::CsPad::DataV2> data = evt.get(m_src, "", &m_actualSrc);
-
-	//put data into array1D object, which can then be passed to the following modules
+	Pds::Src exactSrc;				// Src object after the contents of m_sourceString have been evaluated (matched)
+	shared_ptr<Psana::CsPad::DataV2> data = evt.get(m_dataSourceString, "calibrated", &exactSrc);
+	
+	//if no calibrated data was found in the event, use the raw data from the xtc file
+	//(probably the module cspad_mod.CsPadCalib wasn't executed before)
+	if ( data.get() ){
+		evtinfo << "pre-calibrated data ";
+	}else{
+		evtinfo << "non-calibrated data ";
+		data = evt.get(m_dataSourceString, "", &exactSrc);
+	}
+	
+	//create shared_ptr to an array1D object, which can then be passed to the following modules
 	shared_ptr<array1D> raw1D_sp ( new array1D(nMaxTotalPx) );
 	array1D* raw1D = raw1D_sp.get();
 	
@@ -343,7 +400,7 @@ discriminate::event(Event& evt, Env& env)
 		for (int q = 0; q < nQuads; ++q) {
 			const Psana::CsPad::ElementV2& el = data->quads(q);
 			
-			const uint16_t* quad_data = el.data();
+			const int16_t* quad_data = el.data();
 			int quad_count = el.quad();				//quadrant number
 			std::vector<int> quad_shape = el.data_shape();
 			int actual2x1sPerQuad = quad_shape.at(0);
@@ -360,11 +417,11 @@ discriminate::event(Event& evt, Env& env)
 				<< " has " << actual2x1sPerQuad << " 2x1s, " << actualPxPerQuad << " pixels");
 		}//for all quads
 	}else{
-		MsgLog(name(), warning, "could not get CSPAD data" );
+		MsgLog(name(), error, "could not get CSPAD data" );
 	}
 	
 	double avgPerPix = datasum/(double)pxsum;
-	evtinfo << "avg: " << setw(8) << avgPerPix << ", threshold delta: (" 
+	evtinfo << "avg:" << setw(8) << avgPerPix << ", threshold delta (" 
 		<< setw(8) << avgPerPix-p_lowerThreshold << "/"
 		<< setw(8) << avgPerPix-p_upperThreshold << ") ";
 	
@@ -376,7 +433,7 @@ discriminate::event(Event& evt, Env& env)
 		
 		p_skipcount++;
 	}else{
-		evtinfo << " --> ACCEPT <--";
+		evtinfo << " --> ACCEPT (hit# " << p_hitcount << ") <--";
 		
 		// add the data to the event so that other modules can access it
 		evt.put(raw1D_sp, IDSTRING_CSPAD_DATA);
@@ -426,13 +483,14 @@ discriminate::endJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "discriminate::endJob()" );
 
+	MsgLog(name(), info, "---------------------------------------------------");
 	MsgLog(name(), info, "processed events: " << p_count 
 		<< ", hits: " << p_hitcount 
 		<< ", skipped: " << p_skipcount 
 		<< ", hitrate: " << p_hitcount/(double)p_count * 100 << "%." );
 		
 	arraydata *hits = new arraydata(p_hitInt);
-	MsgLog(name(), info, "---hit intensity histogram---\n" << hits->getHistogramASCII(30) );
+	MsgLog(name(), info, "\n ------hit intensity histogram------\n" << hits->getHistogramASCII(30) );
 	delete hits;
 }
 

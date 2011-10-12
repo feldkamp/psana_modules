@@ -97,25 +97,21 @@ public:
 protected:
 
 private:
-	//own private variables
+	int p_useCorrectedData;
 	int p_lowerThreshold;
 	int p_upperThreshold;
 	
+	int p_maxHits;
 	int p_skipcount;
 	int p_hitcount;
-	
-	int p_numQuads;
-	int p_numSect;
-	
-	std::vector<double> p_hitInt;
-	
 	int p_count;
-	int p_maxHits;
-	
+
 	int p_useShift;
 	double p_shiftX;
 	double p_shiftY;
-	double p_detOffset;			// default = 500.0 + 79.0 + 4.0 = 583
+	double p_detOffset;				// default = 500.0 + 63.0 = 563
+
+	std::vector<double> p_hitInt;	//vector to keep track of the hit intensity	
 	
 	//-------------comment on detOffset------------------------------------------
 	// At the closest possible position, the stage is at -500mm
@@ -133,15 +129,15 @@ private:
 
 	//---------------------------------------------------------------pdsm standard stuff
 	//needed to read data from detector
-	std::string		m_src;         		// Data source set from config file, i.e. CxiDs1.0:Cspad.0
-	Pds::Src		m_actualSrc;
+	std::string		m_dataSourceString;			// Data source set from config file, i.e. CxiDs1.0:Cspad.0
 	
 	//needed for CSPadCalibPars (parser of the calibration data)
+	std::string		m_calibSourceString;
 	std::string 	m_calibDir;       	// i.e. /reg/d/psdm/CXI/cxi35711/calib
 	std::string		m_typeGroupName;  	// i.e. CsPad::CalibV1
 	unsigned		m_runNumber;
 	bool			m_tiltIsApplied;
-		
+	
 	PSCalib::CSPadCalibPars        *m_cspad_calibpar;		//all calibration information
 	CSPadPixCoords::PixCoords2x1   *m_pix_coords_2x1;		//pixel coordinates for 2x1s
 	CSPadPixCoords::PixCoordsQuad  *m_pix_coords_quad;		//pixel coordinates for quads
