@@ -15,11 +15,11 @@
 		
 
 //-------------functions for the CSPAD detector-------------
-void create1DFromRawImageCSPAD( array2D *input, array1D *output );
+int create1DFromRawImageCSPAD( array2D *input, array1D *&output );
 
-void createRawImageCSPAD( array1D *input, array2D *output );
+int createRawImageCSPAD( array1D *input, array2D *&output );
 
-void createAssembledImageCSPAD( array1D *input, array1D *pixX, array1D *pixY, array2D *output );
+int createAssembledImageCSPAD( array1D *input, array1D *pixX, array1D *pixY, array2D *&output );
 			
 
 

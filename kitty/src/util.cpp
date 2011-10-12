@@ -24,7 +24,12 @@ using std::string;
 // make a 1D array from a written 2D "raw" image
 //
 //-------------------------------------------------------------
-void create1DFromRawImageCSPAD( array2D *input, array1D *output ){
+int create1DFromRawImageCSPAD( array2D *input, array1D *&output ){
+	if (!input){
+		cerr << "Error in create1DFromRawImageCSPAD. No input. Aborting..." << endl;
+		return 1;
+	}
+	
 	delete output;
 	output = new array1D( nMaxTotalPx );
 
@@ -44,6 +49,7 @@ void create1DFromRawImageCSPAD( array2D *input, array1D *output ){
 			}
 		}
 	}
+	return 0;
 }
 
 
@@ -69,7 +75,12 @@ void create1DFromRawImageCSPAD( array2D *input, array1D *output ){
 //    +--+--+--+--+--+--+--+--+
 //     s0 s1 s2 s3 s4 s5 s6 s7
 //-------------------------------------------------------------
-void createRawImageCSPAD( array1D *input, array2D* output ){
+int createRawImageCSPAD( array1D *input, array2D *&output ){
+	if (!input){
+		cerr << "Error in createRawImageCSPAD. No input. Aborting..." << endl;
+		return 1;
+	}
+
 	delete output;
 	output = new array2D( nMaxQuads*nRowsPer2x1, nMax2x1sPerQuad*nColsPer2x1 );
 	
@@ -89,6 +100,7 @@ void createRawImageCSPAD( array1D *input, array2D* output ){
 	
 	//transpose to be conform with cheetah's convention
 	output->transpose();
+	return 0;
 }
 
 
@@ -96,8 +108,12 @@ void createRawImageCSPAD( array1D *input, array2D* output ){
 //------------------------------------------------------------- createAssembledImageCSPAD
 // expects 'pixX/Y' arrays to contain pixel count coordinates for each value in 'input'
 //-------------------------------------------------------------
-void createAssembledImageCSPAD( array1D *input, array1D *pixX, array1D *pixY, array2D* output ){
-
+int createAssembledImageCSPAD( array1D *input, array1D *pixX, array1D *pixY, array2D *&output ){
+	if (!input){
+		cerr << "Error in createAssembledImageCSPAD. No input. Aborting..." << endl;
+		return 1;
+	}
+	
 	const double xmax = pixX->calcMax();
 	const double xmin = pixX->calcMin();
 	const double ymax = pixY->calcMax();
@@ -112,7 +128,7 @@ void createAssembledImageCSPAD( array1D *input, array1D *pixX, array1D *pixY, ar
 		cerr << "Error in array2D::createAssembledImageCSPAD! Array sizes don't match. Aborting!" << endl;
 		cerr << "size() of data:" << input->size() << ", pixX:" << pixX->size() << ", pixY:" << pixY->size() << endl;
 		cerr << "dim1() of data:" << input->dim1() << ", pixX:" << pixX->dim1() << ", pixY:" << pixY->dim1() << endl;
-		return;
+		return 2;
 	}else{
 		cout << "Assembling CSPAD image. Output (" << NX_CSPAD << ", " << NY_CSPAD << ")" << endl;
 	}
@@ -137,6 +153,7 @@ void createAssembledImageCSPAD( array1D *input, array1D *pixX, array1D *pixY, ar
 	}
 	
 	output->transpose();
+	return 0;
 }
 
 
