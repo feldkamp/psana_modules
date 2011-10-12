@@ -47,7 +47,18 @@ namespace kitty {
 // Constructors --
 //----------------
 makemask::makemask (const std::string& name)
-  : Module(name)
+	: Module(name)
+	, p_badPixelLowerBoundary(0)
+	, p_badPixelUpperBoundary(0)
+	, p_outputPrefix("")
+	, p_mask_fn("")
+	, p_useMask(0)
+	, p_takeOutThirteenthRow(0)
+	, p_takeOutASICFrame(0)
+	, io(0)
+	, p_sum(0)
+	, p_mask(0)
+	, p_count(0)
 {
   // get the values from configuration or use defaults
 	
@@ -59,11 +70,8 @@ makemask::makemask (const std::string& name)
 	p_takeOutThirteenthRow	= config   ("takeOutThirteenthRow", 	1);
 	p_takeOutASICFrame		= config   ("takeOutASICFrame", 		1);
 		
-	io = new arraydataIO;
+	io = new arraydataIO();
 	p_sum = new array1D( nMaxTotalPx );
-	p_mask = new array1D();
-	
-	p_count = 0;
 }
 
 //--------------
@@ -136,11 +144,11 @@ makemask::event(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "makemask::event()" );
 
-	shared_ptr<array1D> data = evt.get(IDSTRING_CSPAD_DATA);
+	array1D *data = ((shared_ptr<array1D>) evt.get(IDSTRING_CSPAD_DATA)).get();
 	if (data){
 		MsgLog(name(), debug, "read event data of size " << data->size() );
 
-		p_sum->addArrayElementwise( data.get() );
+		p_sum->addArrayElementwise( data );
 	
 		p_count++;	
 	}else{
