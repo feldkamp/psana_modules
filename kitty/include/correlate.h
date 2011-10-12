@@ -91,11 +91,11 @@ private:
 	int p_tifOut;
 	int p_edfOut;
 	int p_h5Out;
-
-	int p_autoCorrelateOnly;
-	std::string p_mask_fn;
-	int p_useMask;
 	int p_singleOutput;
+	std::string p_outputPrefix;
+	
+	std::string p_mask_fn;
+	int p_useMask;	
 	
 	int p_nPhi;
 	int p_nQ1;
@@ -103,14 +103,13 @@ private:
 	int p_nLag;
 	
 	int p_alg;
+	int p_autoCorrelateOnly;
 	
 	int p_startQ;
 	int p_stopQ;
 	
 	int p_LUTx;
 	int p_LUTy;
-	
-	std::string p_outputPrefix;
 	
 	arraydataIO *io;
 	

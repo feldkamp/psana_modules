@@ -48,43 +48,59 @@ namespace kitty {
 // Constructors --
 //----------------
 correlate::correlate (const std::string& name)
-  : Module(name)
+	: Module(name)
+	, p_tifOut(0)
+	, p_edfOut(0)
+	, p_h5Out(0)
+	, p_singleOutput(0)
+	, p_outputPrefix("")
+	, p_mask_fn("")
+	, p_useMask(0)
+	, p_nPhi(0)
+	, p_nQ1(0)
+	, p_nQ2(0)
+	, p_nLag(0)
+	, p_alg(0)
+	, p_autoCorrelateOnly(0)
+	, p_startQ(0)
+	, p_stopQ(0)
+	, p_LUTx(0)
+	, p_LUTy(0)
+	, io(0)
+	, p_pixX_sp()
+	, p_pixY_sp()
+	, p_mask(0)
+	, p_LUT(0)
+	, p_polarAvg(0)
+	, p_corrAvg(0)
+	, p_qAvg(0)
+	, p_iAvg(0)
+	, p_count(0)
 {
 	p_tifOut 			= config   ("tifOut", 				0);
 	p_edfOut 			= config   ("edfOut", 				1);
 	p_h5Out 			= config   ("h5Out", 				0);
-	p_autoCorrelateOnly = config   ("autoCorrelateOnly",	1);
-	p_mask_fn			= configStr("mask", 				"");	
-	p_useMask			= config   ("useMask", 				0);
 	p_singleOutput		= config   ("singleOutput",			0);
 	p_outputPrefix		= configStr("outputPrefix", 		"corr");
 	
+	p_mask_fn			= configStr("mask", 				"");	
+	p_useMask			= config   ("useMask", 				0);
+		
 	p_nPhi 				= config   ("nPhi",					128);
 	p_nQ1 				= config   ("nQ1",					1);
 	p_nQ2 				= config   ("nQ2",					1);
 	
 	p_alg				= config   ("algorithm",			1);
+	p_autoCorrelateOnly = config   ("autoCorrelateOnly",	1);	
 	
 	p_startQ			= config   ("startQ",				0);
 	p_stopQ				= config   ("stopQ",				p_startQ+p_nQ1);	
 
 	p_LUTx				= config   ("LUTx",					100);
 	p_LUTy				= config   ("LUTy",					100);
+	
+	io = new arraydataIO();
 
-	p_nLag = 0;
-	
-	io = new arraydataIO;
-	
-	//initialize arrays to something
-	p_mask = new array1D;
-	p_LUT = new array2D;
-	p_polarAvg = new array2D;
-	p_corrAvg = new array2D;
-	
-	p_qAvg = new array1D;
-	p_iAvg = new array1D;
-	
-	p_count = 0;
 }
 
 //--------------
@@ -114,7 +130,7 @@ correlate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "h5Out             = '" << p_h5Out << "'" );
 	MsgLog(name(), info, "autoCorrelateOnly = '" << p_autoCorrelateOnly << "'" );
 	MsgLog(name(), info, "useMask           = '" << p_useMask << "'" );
-	MsgLog(name(), info, "mask              = '" << p_mask << "'" );
+	MsgLog(name(), info, "mask file name    = '" << p_mask_fn << "'" );
 	MsgLog(name(), info, "singleOutput      = '" << p_singleOutput << "'" );
 	MsgLog(name(), info, "nPhi              = '" << p_nPhi << "'" );
 	MsgLog(name(), info, "nQ1               = '" << p_nQ1 << "'" );
@@ -129,16 +145,19 @@ correlate::beginJob(Event& evt, Env& env)
 	//load bad pixel mask
 	io->readFromEDF( p_mask_fn, p_mask );
 	
-	p_pixX_sp = evt.get(IDSTRING_PX_X_int);
-	p_pixY_sp = evt.get(IDSTRING_PX_Y_int);
+//	p_pixX = ( (shared_ptr<array1D>) evt.get(IDSTRING_PX_X_int) ).get();
+//	p_pixY = ( (shared_ptr<array1D>) evt.get(IDSTRING_PX_Y_int) ).get();
+	p_pixX_sp = evt.get(IDSTRING_PX_X_int); 
+	p_pixY_sp = evt.get(IDSTRING_PX_Y_int); 
+	
 	if (p_pixX_sp && p_pixY_sp){
 		MsgLog(name(), info, "read data for pixX(n=" << p_pixX_sp->size() << "), pixY(n=" << p_pixY_sp->size() << ")" );
 	}else{
-		MsgLog(name(), warning, "could not get data from pixX(addr=" << p_pixX_sp << ") or pixY(addr=" << p_pixY_sp << ")" );
+		MsgLog(name(), warning, "could not get data from pixX(addr=" << p_pixX_sp.get() << ") or pixY(addr=" << p_pixY_sp.get() << ")" );
 	}
 
 	//before everything starts, create a dummy CrossCorrelator to set up some things
-	CrossCorrelator *dummy_cc = new CrossCorrelator(p_pixX_sp.get(), p_pixX_sp.get(), p_pixY_sp.get(), p_nPhi, p_nQ1);
+	CrossCorrelator *dummy_cc = new CrossCorrelator(p_pixY_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1);
 	p_nLag = dummy_cc->nLag();
 	if ( p_alg == 2 || p_alg == 4 ){
 		//prepare lookup table once here, so it doesn't have to be done every time
@@ -187,20 +206,15 @@ correlate::event(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correlate::event()" );
 
-	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
-	shared_ptr<PSEvt::EventId> eventId = evt.get();
+	array1D *data = ( (shared_ptr<array1D>) evt.get(IDSTRING_CSPAD_DATA) ).get();
+	string eventname_str = *( (shared_ptr<std::string>) evt.get(IDSTRING_CUSTOM_EVENTNAME) ).get();
 	
-	if (data_sp){
-		MsgLog(name(), info, "read event data of size " << data_sp->size() );
-
-		std::ostringstream osst;
-//		osst << "t" << eventId->time();
-		osst << std::setfill('0') << std::setw(10) << p_count;
-		string eventname_str = osst.str();
+	if (data){
+		MsgLog(name(), info, "read event data of size " << data->size() );
 		
 		//create cross correlator object that takes care of the computations
 		//the arguments that are passed to the constructor determine 2D/3D calculations with/without mask
-		CrossCorrelator *cc = NULL;
+		CrossCorrelator *cc = 0;
 		
 		//-----------------------------ATTENTION----------------------------------		
 		// THE X & Y ARRAYS GENERATED FROM THE CALIBRATION DATA
@@ -210,15 +224,15 @@ correlate::event(Event& evt, Env& env)
 				
 		if (p_autoCorrelateOnly) {
 			if (p_useMask) {											//auto-correlation 2D case, with mask
-				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
+				cc = new CrossCorrelator( data, p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
 			} else { 															//auto-correlation 2D case, no mask
-				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1 );
+				cc = new CrossCorrelator( data, p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1 );
 			}
 		} else {
 			if (p_useMask){												//full cross-correlation 3D case, with mask
-				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
+				cc = new CrossCorrelator( data, p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
 			} else { 															//full cross-correlation 3D case, no mask
-				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nQ1, p_nQ1, p_nQ2);
+				cc = new CrossCorrelator( data, p_pixY_sp.get(), p_pixX_sp.get(), p_nQ1, p_nQ1, p_nQ2);
 			}
 		}
 		
@@ -227,7 +241,12 @@ correlate::event(Event& evt, Env& env)
 		if ( MsgLogger::MsgLogger().logging(lvl) ) {
 			cc->setDebug(1);
 		}
-		cc->setLookupTable( p_LUT );
+		
+		if (p_LUT){
+			cc->setLookupTable( p_LUT );
+		}else{
+			MsgLog(name(), debug, "no lookup table set (since it's not needed in this algorithm)");
+		}
 		
 		MsgLog(name(), info, "calling alg " << p_alg << ", startQ=" << p_startQ << ", stopQ=" << p_stopQ );
 		
