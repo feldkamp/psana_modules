@@ -93,7 +93,16 @@ assemble::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "h5Out             = '" << p_h5Out << "'" );
 	MsgLog(name(), info, "singleOutput      = '" << p_singleOutput << "'" );
 	MsgLog(name(), info, "use normalization = '" << p_useNormalization << "'" );
+}
 
+
+/// ------------------------------------------------------------------------------------------------
+/// Method which is called at the beginning of the run
+void 
+assemble::beginRun(Event& evt, Env& env)
+{
+	MsgLog(name(), debug,  "assemble::beginRun()" );
+	
 //	p_pixX = ( (shared_ptr<array1D>) evt.get(IDSTRING_PX_X_int) ).get();
 //	p_pixY = ( (shared_ptr<array1D>) evt.get(IDSTRING_PX_Y_int) ).get();
 	p_pixX_sp = evt.get(IDSTRING_PX_X_int); 
@@ -104,15 +113,6 @@ assemble::beginJob(Event& evt, Env& env)
 	}else{
 		MsgLog(name(), warning, "could not get data from pixX(addr=" << p_pixX_sp.get() << ") or pixY(addr=" << p_pixY_sp.get() << ")" );
 	}
-}
-
-
-/// ------------------------------------------------------------------------------------------------
-/// Method which is called at the beginning of the run
-void 
-assemble::beginRun(Event& evt, Env& env)
-{
-	MsgLog(name(), debug,  "assemble::beginRun()" );
 }
 
 
