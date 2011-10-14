@@ -63,6 +63,7 @@ discriminate::discriminate (const std::string& name)
 	, p_skipcount(0)
 	, p_hitcount(0)
 	, p_count(0)
+	, p_stopflag(false)
 	, p_useShift(0)	
 	, p_shiftX(0)
 	, p_shiftY(0)
@@ -85,9 +86,9 @@ discriminate::discriminate (const std::string& name)
 	m_calibDir      	= configStr("calibDir",				"/reg/d/psdm/CXI/cxi35711/calib");
 	m_typeGroupName 	= configStr("typeGroupName",		"CsPad::CalibV1");
 	m_tiltIsApplied 	= config   ("tiltIsApplied",		true);								//tilt angle correction
-	m_runNumber			= config   ("runNumber",     		0);
+	m_runNumber			= config   ("calibRunNumber",     	0);
 	
-	p_lowerThreshold 	= config("lowerThreshold", 			0);
+	p_lowerThreshold 	= config("lowerThreshold", 			-10000000);
 	p_upperThreshold 	= config("upperThreshold", 			10000000);
 	p_maxHits			= config("maxHits",					10000000);
 	
@@ -96,31 +97,6 @@ discriminate::discriminate (const std::string& name)
 	p_shiftX			= config("shiftX",					-867.355);
 	p_shiftY			= config("shiftY",					-862.758);
 	p_detOffset 		= config("detOffset",				500.0 + 63.0);						// see explanation in header
-
-	try{
-		MsgLog(name, info, "reading calibration from "
-								<< "\n   calib dir  = '" << m_calibDir << "'"
-								<< "\n   type group = '" << m_typeGroupName << "'"
-								<< "\n   source     = '" << m_calibSourceString << "'"
-								<< "\n   run number = '" << m_runNumber << "'"
-								);
-		m_cspad_calibpar   = new PSCalib::CSPadCalibPars(m_calibDir, m_typeGroupName, m_calibSourceString, m_runNumber);
-		m_pix_coords_2x1   = new CSPadPixCoords::PixCoords2x1();
-		m_pix_coords_quad  = new CSPadPixCoords::PixCoordsQuad( m_pix_coords_2x1,  m_cspad_calibpar, m_tiltIsApplied );
-		m_pix_coords_cspad = new CSPadPixCoords::PixCoordsCSPad( m_pix_coords_quad, m_cspad_calibpar, m_tiltIsApplied );
-	
-		//check psana's debug level
-		//....so we can get rid of the verbosity when we actually run a lot of data
-		MsgLogger::MsgLogLevel lvl(MsgLogger::MsgLogLevel::info);
-		if ( MsgLogger::MsgLogger().logging(lvl) ) {
-			cout << "------------calibration data parser---------------" << endl;
-			m_cspad_calibpar->printCalibPars();
-			cout << "------------pix coords 2x1-----------" << endl;
-			m_pix_coords_2x1->print_member_data();
-		}
-	}catch(...){
-		MsgLog(name, error, "Could not retrieve calibration data");
-	}
 }
 
 //--------------
@@ -150,17 +126,27 @@ discriminate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "shiftY = " << p_shiftY );
 	MsgLog(name(), info, "detOffset = " << p_detOffset );
 	
-	MsgLog(name(), info, "------CSPAD info------" );
-	MsgLog(name(), info, "nRowsPerASIC = " << nRowsPerASIC );
-	MsgLog(name(), info, "nColsPerASIC = " << nColsPerASIC ); 
-	MsgLog(name(), info, "nRowsPer2x1 = " << nRowsPer2x1 );
-	MsgLog(name(), info, "nColsPer2x1 = " << nColsPer2x1 ); 
-	MsgLog(name(), info, "nMax2x1sPerQuad =  " << nMax2x1sPerQuad ); 
-	MsgLog(name(), info, "nMaxQuads = " << nMaxQuads ); 
-	MsgLog(name(), info, "nPxPer2x1 = " << nPxPer2x1 ); 
-	MsgLog(name(), info, "nMaxPxPerQuad = " << nMaxPxPerQuad ); 
-	MsgLog(name(), info, "nMaxTotalPx = " << nMaxTotalPx ); 
+	MsgLog(name(), debug, "------CSPAD info------" );
+	MsgLog(name(), debug, "nRowsPerASIC = " << nRowsPerASIC );
+	MsgLog(name(), debug, "nColsPerASIC = " << nColsPerASIC ); 
+	MsgLog(name(), debug, "nRowsPer2x1 = " << nRowsPer2x1 );
+	MsgLog(name(), debug, "nColsPer2x1 = " << nColsPer2x1 ); 
+	MsgLog(name(), debug, "nMax2x1sPerQuad =  " << nMax2x1sPerQuad ); 
+	MsgLog(name(), debug, "nMaxQuads = " << nMaxQuads ); 
+	MsgLog(name(), debug, "nPxPer2x1 = " << nPxPer2x1 ); 
+	MsgLog(name(), debug, "nMaxPxPerQuad = " << nMaxPxPerQuad ); 
+	MsgLog(name(), debug, "nMaxTotalPx = " << nMaxTotalPx ); 
+}
 
+
+
+
+/// ------------------------------------------------------------------------------------------------
+/// Method which is called at the beginning of the run
+void 
+discriminate::beginRun(Event& evt, Env& env)
+{
+	MsgLog(name(), debug,  "discriminate::beginRun()" );
 
 	MsgLog(name(), debug, "------list of stored PVs------" );
 	const vector<string>& pvNames = env.epicsStore().pvNames();
@@ -170,80 +156,123 @@ discriminate::beginJob(Event& evt, Env& env)
 	
 	MsgLog(name(), info, "------list of read out PVs------" );
 	//compile a list of general PVs that need to be read out for this job (and don't change for each event)
-	vector<string> jobPVs;						// vector for list of PVs
-	vector<string> jobDesc;						// vector for PV description
+	vector<string> runPVs;						// vector for list of PVs
+	vector<string> runDesc;						// vector for PV description
 	
-	jobPVs.push_back("CXI:DS1:MMS:06");									//# 0
-	jobDesc.push_back("detector position");
+	runPVs.push_back("CXI:DS1:MMS:06");									//# 0
+	runDesc.push_back("detector position");
 	unsigned int detZ_no = 0;
 	
-	jobPVs.push_back("BEND:DMP1:400:BDES");								//# 1
-	jobDesc.push_back("electron beam energy");
+	runPVs.push_back("BEND:DMP1:400:BDES");								//# 1
+	runDesc.push_back("electron beam energy");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO289");							//# 2
-	jobDesc.push_back("Vernier energy");
+	runPVs.push_back("SIOC:SYS0:ML00:AO289");							//# 2
+	runDesc.push_back("Vernier energy");
 	
-	jobPVs.push_back("BPMS:DMP1:199:TMIT1H");							//# 3
-	jobDesc.push_back("particle N_electrons");
+	runPVs.push_back("BPMS:DMP1:199:TMIT1H");							//# 3
+	runDesc.push_back("particle N_electrons");
 
-	jobPVs.push_back("EVNT:SYS0:1:LCLSBEAMRATE");						//# 4
-	jobDesc.push_back("LCLS repetition rate");
+	runPVs.push_back("EVNT:SYS0:1:LCLSBEAMRATE");						//# 4
+	runDesc.push_back("LCLS repetition rate");
 		
-	jobPVs.push_back("SIOC:SYS0:ML00:AO195");							//# 5
-	jobDesc.push_back("peak current after second bunch compressor");
+	runPVs.push_back("SIOC:SYS0:ML00:AO195");							//# 5
+	runDesc.push_back("peak current after second bunch compressor");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO820");							//# 6
-	jobDesc.push_back("pulse length");
+	runPVs.push_back("SIOC:SYS0:ML00:AO820");							//# 6
+	runDesc.push_back("pulse length");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO569");							//# 7
-	jobDesc.push_back("ebeam energy loss converted to photon mJ");
+	runPVs.push_back("SIOC:SYS0:ML00:AO569");							//# 7
+	runDesc.push_back("ebeam energy loss converted to photon mJ");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO580");							//# 8
-	jobDesc.push_back("calculated number of photons");
+	runPVs.push_back("SIOC:SYS0:ML00:AO580");							//# 8
+	runDesc.push_back("calculated number of photons");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO541");							//# 9
-	jobDesc.push_back("photon beam energy");
+	runPVs.push_back("SIOC:SYS0:ML00:AO541");							//# 9
+	runDesc.push_back("photon beam energy");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO627");							//# 10
-	jobDesc.push_back("photon beam energy");
+	runPVs.push_back("SIOC:SYS0:ML00:AO627");							//# 10
+	runDesc.push_back("photon beam energy");
 	
-	jobPVs.push_back("SIOC:SYS0:ML00:AO192");							//# 11
-	jobDesc.push_back("wavelength in Angstrom");
+	runPVs.push_back("SIOC:SYS0:ML00:AO192");							//# 11
+	runDesc.push_back("wavelength in Angstrom");
 	unsigned int lambda_no = 11;
 	
 	
-	vector<double> jobVals;						// vector for corresponding values
-	jobVals.assign(jobPVs.size(), 0.);			// set all values of PVs to zero initially
-	vector<bool> jobPVvalid;					// keep track of the validity of this PV
-	jobPVvalid.assign(jobPVs.size(), false);
+	vector<double> runVals;						// vector for corresponding values
+	runVals.assign(runPVs.size(), 0.);			// set all values of PVs to zero initially
+	vector<bool> runPVvalid;					// keep track of the validity of this PV
+	runPVvalid.assign(runPVs.size(), false);
 	
-	for (unsigned int i = 0; i < jobPVs.size(); i++){
+	for (unsigned int i = 0; i < runPVs.size(); i++){
 		try{
-			jobVals.at(i) = env.epicsStore().value(jobPVs.at(i));
+			runVals.at(i) = env.epicsStore().value(runPVs.at(i));
 			MsgLog(name(), info, setw(3) << "#" << i << " " 
-				<< setw(26) << jobPVs.at(i) << " = " 
-				<< setw(12) << jobVals.at(i) 
-				<< " (" << jobDesc.at(i) << ")" );
-			jobPVvalid.at(i) = true;
+				<< setw(26) << runPVs.at(i) << " = " 
+				<< setw(12) << runVals.at(i) 
+				<< " (" << runDesc.at(i) << ")" );
+			runPVvalid.at(i) = true;
 		}catch(...){
-			MsgLog(name(), warning, "PV " << jobPVs.at(i) << " (" << jobDesc.at(i) << ") doesn't exist." );
-			jobPVvalid.at(i) = false;
+			MsgLog(name(), warning, "PV " << runPVs.at(i) << " (" << runDesc.at(i) << ") doesn't exist." );
+			runPVvalid.at(i) = false;
 		}
 	}
 	
 	MsgLog(name(), info, "------quantities derived from selected PVs------" );
 	double detZ = 0; 
-	if (jobPVvalid.at(detZ_no) ){
-		detZ = p_detOffset + jobVals.at(detZ_no);
+	if (runPVvalid.at(detZ_no) ){
+		detZ = p_detOffset + runVals.at(detZ_no);
 	}
 	double lambda = 0;
-	if (jobPVvalid.at(lambda_no) ){
-		lambda = jobVals.at(lambda_no);
+	if (runPVvalid.at(lambda_no) ){
+		lambda = runVals.at(lambda_no);
 	}
 	double two_k = 2*2*M_PI/lambda;								//in units of inv. Angstrom
 	MsgLog(name(), info, "detZ = " << detZ << " mm");				
 	MsgLog(name(), info, "2*k = " << two_k << "Å^-1" );
 	MsgLog(name(), info, " ");
+	
+	std::list<EventKey> keys = evt.keys();
+	MsgLog(name(), info, "------" << keys.size() << " keys in event------");
+	for ( std::list<EventKey>::iterator it = keys.begin(); it != keys.end(); it++ ){
+		MsgLog(name(), debug, "key: '" << it->key() << "'");
+	}
+	
+
+	//get run rumber for this run
+	shared_ptr<EventId> eventId = evt.get();
+    if (eventId.get()) {
+		m_runNumber = eventId->run();
+		MsgLog(name(), trace, name() << ": Using run number " << m_runNumber);
+    } else {
+		MsgLog(name(), warning, name() << ": Cannot determine run number, will use 0.");
+		m_runNumber = 0;
+    }
+	
+	//look up calibration data (CSPAD geometry) for this run
+	try{
+		MsgLog(name(), info, "reading calibration from "
+								<< "\n   calib dir  = '" << m_calibDir << "'"
+								<< "\n   type group = '" << m_typeGroupName << "'"
+								<< "\n   source     = '" << m_calibSourceString << "'"
+								<< "\n   run number = '" << m_runNumber << "'"
+								);
+		m_cspad_calibpar   = new PSCalib::CSPadCalibPars(m_calibDir, m_typeGroupName, m_calibSourceString, m_runNumber);
+		m_pix_coords_2x1   = new CSPadPixCoords::PixCoords2x1();
+		m_pix_coords_quad  = new CSPadPixCoords::PixCoordsQuad( m_pix_coords_2x1,  m_cspad_calibpar, m_tiltIsApplied );
+		m_pix_coords_cspad = new CSPadPixCoords::PixCoordsCSPad( m_pix_coords_quad, m_cspad_calibpar, m_tiltIsApplied );
+	
+		//check psana's debug level
+		//....so we can get rid of the verbosity when we actually run a lot of data
+		MsgLogger::MsgLogLevel lvl(MsgLogger::MsgLogLevel::info);
+		if ( MsgLogger::MsgLogger().logging(lvl) ) {
+			cout << "------------calibration data parser---------------" << endl;
+			m_cspad_calibpar->printCalibPars();
+			cout << "------------pix coords 2x1-----------" << endl;
+			m_pix_coords_2x1->print_member_data();
+		}
+	}catch(...){
+		MsgLog(name(), error, "Could not retrieve calibration data");
+	}
 	
 	//---read calibration information arrays and add them to the event---
 	//---possibly take some of this out if not needed and memory is needed
@@ -323,17 +352,6 @@ discriminate::beginJob(Event& evt, Env& env)
 }
 
 
-
-
-/// ------------------------------------------------------------------------------------------------
-/// Method which is called at the beginning of the run
-void 
-discriminate::beginRun(Event& evt, Env& env)
-{
-	MsgLog(name(), debug,  "discriminate::beginRun()" );
-}
-
-
 /// ------------------------------------------------------------------------------------------------
 /// Method which is called at the beginning of the calibration cycle
 void 
@@ -349,8 +367,23 @@ discriminate::beginCalibCycle(Event& evt, Env& env)
 void 
 discriminate::event(Event& evt, Env& env)
 {
-	ostringstream evtinfo;
-	evtinfo <<  "evt#" << p_count << " ";
+	if (p_stopflag){
+		MsgLog(name(), info, "Stopping analysis job after maximum number of hits (" << p_maxHits << ") has been reached");
+		stop();
+		return;
+	}
+	
+	shared_ptr<EventId> eventId = evt.get();
+	MsgLog(name(), debug, "event ID: " << *eventId);
+
+	std::list<EventKey> keys = evt.keys();
+	MsgLog(name(), debug, "------" << keys.size() << " keys in event------");
+	for ( std::list<EventKey>::iterator it = keys.begin(); it != keys.end(); it++ ){
+		string thiskey = it->key();
+		Pds::Src thissrc = it->src();
+		string thissrcstr = "";
+		MsgLog(name(), debug, "key: '" << thiskey << "', src: '" << thissrcstr << "'" );
+	}
 	
 	//compile a list of PVs that need to be read out for each event 
 	// (works, but commented out since it's not needed right now)
@@ -368,6 +401,9 @@ discriminate::event(Event& evt, Env& env)
 //			MsgLog(name(), warning, "PV " << eventPVs.at(i) << " doesn't exist." );
 //		}
 //	}
+
+	ostringstream evtinfo;
+	evtinfo <<  "evt#" << p_count << " ";
 	
 	double datasum = 0.;
 	int pxsum = 0;
@@ -379,8 +415,9 @@ discriminate::event(Event& evt, Env& env)
 	evt.put(eventname_sp, IDSTRING_CUSTOM_EVENTNAME);
 	
 	//get CSPAD data from evt object (out of XTC stream)
-	Pds::Src exactSrc;				// Src object after the contents of m_sourceString have been evaluated (matched)
-	shared_ptr<Psana::CsPad::DataV2> data = evt.get(m_dataSourceString, "calibrated", &exactSrc);
+//	Pds::Src exactSrc;				// Src object after the contents of m_sourceString have been evaluated (matched)
+//	shared_ptr<Psana::CsPad::DataV2> data = evt.get(m_dataSourceString, "calibrated", &exactSrc);
+	shared_ptr<Psana::CsPad::DataV2> data = evt.get(m_dataSourceString, "calibrated");
 	
 	//if no calibrated data was found in the event, use the raw data from the xtc file
 	//(probably the module cspad_mod.CsPadCalib wasn't executed before)
@@ -388,7 +425,8 @@ discriminate::event(Event& evt, Env& env)
 		evtinfo << "pre-calibrated data ";
 	}else{
 		evtinfo << "non-calibrated data ";
-		data = evt.get(m_dataSourceString, "", &exactSrc);
+//		data = evt.get(m_dataSourceString, "", &exactSrc);
+		data = evt.get(m_dataSourceString);
 	}
 	
 	//create shared_ptr to an array1D object, which can then be passed to the following modules
@@ -417,7 +455,9 @@ discriminate::event(Event& evt, Env& env)
 				<< " has " << actual2x1sPerQuad << " 2x1s, " << actualPxPerQuad << " pixels");
 		}//for all quads
 	}else{
-		MsgLog(name(), error, "could not get CSPAD data" );
+		MsgLog(name(), error, "could not get data from CSPAD " << m_dataSourceString << ". Skipping this event." );
+		skip();
+		return;
 	}
 	
 	double avgPerPix = datasum/(double)pxsum;
@@ -443,18 +483,18 @@ discriminate::event(Event& evt, Env& env)
 		
 		p_hitcount++;
 	}
+
+	// output collected information...
+	MsgLog(name(), info, evtinfo.str());
 	
-	// gracefully stop analysis job
+	// gracefully stop analysis job when the specified number of hits has been found
+	// stop() halts the analysis right away, so it is invoked on the next hit AFTER the desired number
 	if (p_hitcount >= p_maxHits){
-		MsgLog(name(), info, "Stopping analysis job after maximum number of hits (" << p_maxHits << ") has been reached");
-		stop();
+		p_stopflag = true;
 	}
 	
 	// increment event counter
 	p_count++;
-	
-	// output collected information...
-	MsgLog(name(), info, evtinfo.str());
 }
 
 

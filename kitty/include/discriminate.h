@@ -105,6 +105,8 @@ private:
 	int p_skipcount;
 	int p_hitcount;
 	int p_count;
+	// if g_stopflag is set to true, execution will stop as soon as the beginning of the next event
+	bool p_stopflag;	
 
 	int p_useShift;
 	double p_shiftX;
