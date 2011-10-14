@@ -144,6 +144,15 @@ correlate::beginJob(Event& evt, Env& env)
 
 	//load bad pixel mask
 	io->readFromEDF( p_mask_fn, p_mask );
+}
+
+
+/// ------------------------------------------------------------------------------------------------
+/// Method which is called at the beginning of the run
+void 
+correlate::beginRun(Event& evt, Env& env)
+{
+	MsgLog(name(), debug,  "correlate::beginRun()" );
 	
 //	p_pixX = ( (shared_ptr<array1D>) evt.get(IDSTRING_PX_X_int) ).get();
 //	p_pixY = ( (shared_ptr<array1D>) evt.get(IDSTRING_PX_Y_int) ).get();
@@ -164,7 +173,9 @@ correlate::beginJob(Event& evt, Env& env)
 		dummy_cc->createLookupTable(p_LUTy, p_LUTx);
 		delete p_LUT;
 		p_LUT = new array2D( *(dummy_cc->lookupTable()) );
-		io->writeToEDF( "LUT.edf", p_LUT );
+		
+		//debug: write to disk
+		//io->writeToEDF( "LUT.edf", p_LUT );
 	}
 	delete dummy_cc;
 	
@@ -177,15 +188,6 @@ correlate::beginJob(Event& evt, Env& env)
 	p_qAvg = new array1D( p_nQ1 );
 	delete p_iAvg;
 	p_iAvg = new array1D( p_nQ1 );
-}
-
-
-/// ------------------------------------------------------------------------------------------------
-/// Method which is called at the beginning of the run
-void 
-correlate::beginRun(Event& evt, Env& env)
-{
-	MsgLog(name(), debug,  "correlate::beginRun()" );
 }
 
 
@@ -255,12 +257,38 @@ correlate::event(Event& evt, Env& env)
 		MsgLog(name(), info, "correlation calculation done. writing (single event) files.");
 		if ( p_singleOutput ){
 			if ( !(p_count % p_singleOutput) ){
-				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_xaca.edf", cc->autoCorr() );
-				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_polar.edf", cc->polar() );
-				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_q.edf", cc->qAvg() );
-				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_i.edf", cc->iAvg() );
-			}
-		}
+				
+				if (p_h5Out){
+					string ext = ".h5";
+					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_xaca"+ext, cc->autoCorr() );
+					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_polar"+ext, cc->polar() );
+					//1D output not implemented just yet, using edf for the moment
+//					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, cc->qAvg() );
+//					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, cc->iAvg() );
+					ext = ".edf";
+					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, cc->qAvg() );
+					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, cc->iAvg() );				
+				}
+				if (p_edfOut){
+					string ext = ".edf";
+					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_xaca"+ext, cc->autoCorr() );
+					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_polar"+ext, cc->polar() );
+					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, cc->qAvg() );
+					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, cc->iAvg() );
+				}
+				if (p_tifOut){
+					string ext = ".tif";
+					io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_xaca"+ext, cc->autoCorr() );
+					io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_polar"+ext, cc->polar() );
+					//1D output not implemented just yet, using edf for the moment
+//					io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, cc->qAvg() );
+//					io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, cc->iAvg() );
+					ext = ".edf";
+					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, cc->qAvg() );
+					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, cc->iAvg() );				
+				}
+			}//if no modulo
+		}//if singleout
 		
 		MsgLog(name(), info, "updating running sums.");
 		p_polarAvg->addArrayElementwise( cc->polar() );
@@ -311,40 +339,43 @@ correlate::endJob(Event& evt, Env& env)
 	array2D* qAvg2D = new array2D( p_qAvg, p_qAvg->dim1(), 1 );
 	array2D* iAvg2D = new array2D( p_iAvg, p_iAvg->dim1(), 1 );
 	
+	//HDF5 output
+	if (p_h5Out){
+		string ext = ".h5";
+		if (p_autoCorrelateOnly){
+			io->writeToHDF5( p_outputPrefix+"_avg_polar"+ext, p_polarAvg);
+			io->writeToHDF5( p_outputPrefix+"_avg_xaca"+ext, p_corrAvg );
+		}else{
+			MsgLog(name(), warning, "WARNING. No HDF5 output for 3D cross-correlation case implemented, yet!" );
+		}
+		io->writeToHDF5( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D );
+		io->writeToHDF5( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D );
+	}
+	//EDF output
+	if (p_edfOut){
+		string ext = ".edf";
+		if (p_autoCorrelateOnly){
+			io->writeToEDF( p_outputPrefix+"_avg_polar"+ext, p_polarAvg );
+			io->writeToEDF( p_outputPrefix+"_avg_xaca"+ext, p_corrAvg );
+		}else{
+			MsgLog(name(), warning, "WARNING. No EDF output for 3D cross-correlation case implemented, yet!" );
+		}
+		io->writeToEDF( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D );
+		io->writeToEDF( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D );
+	}
 	//TIFF image output
 	if (p_tifOut){
+		string ext = ".tif";
 		if (p_autoCorrelateOnly){
-			io->writeToTiff( p_outputPrefix+"_polarAvg.tif", p_polarAvg, 1 );			// 0: unscaled, 1: scaled
-			io->writeToTiff( p_outputPrefix+"_xacaAvg.tif", p_corrAvg, 1 );			// 0: unscaled, 1: scaled
+			io->writeToTiff( p_outputPrefix+"_avg_polar"+ext, p_polarAvg, 1 );			// 0: unscaled, 1: scaled
+			io->writeToTiff( p_outputPrefix+"_avg_xaca"+ext, p_corrAvg, 1 );			// 0: unscaled, 1: scaled
 		}else{
 			MsgLog(name(), warning, "WARNING. No tiff output for 3D cross-correlation case implemented, yet!" );
 			//one possibility would be to write a stack of tiffs, one for each of the outer q values
 		}
 		
-		io->writeToTiff( p_outputPrefix+"_qAvg.edf", qAvg2D, 1 );
-		io->writeToTiff( p_outputPrefix+"_iAvg.edf", iAvg2D, 1 );
-	}
-	//EDF output
-	if (p_edfOut){
-		if (p_autoCorrelateOnly){
-			io->writeToEDF( p_outputPrefix+"_polarAvg.edf", p_polarAvg );
-			io->writeToEDF( p_outputPrefix+"_xacaAvg.edf", p_corrAvg );
-		}else{
-			MsgLog(name(), warning, "WARNING. No EDF output for 3D cross-correlation case implemented, yet!" );
-		}
-		io->writeToEDF( p_outputPrefix+"_qAvg.edf", qAvg2D );
-		io->writeToEDF( p_outputPrefix+"_iAvg.edf", iAvg2D );
-	}
-	//HDF5 output
-	if (p_h5Out){
-		if (p_autoCorrelateOnly){
-			io->writeToHDF5( p_outputPrefix+"_polarAvg.h5", p_polarAvg);
-			io->writeToHDF5( p_outputPrefix+"_xacaAvg.h5", p_corrAvg );
-		}else{
-			MsgLog(name(), warning, "WARNING. No HDF5 output for 3D cross-correlation case implemented, yet!" );
-		}
-		io->writeToHDF5( p_outputPrefix+"_qAvg.edf", qAvg2D );
-		io->writeToHDF5( p_outputPrefix+"_iAvg.edf", iAvg2D );
+		io->writeToTiff( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D, 1 );
+		io->writeToTiff( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D, 1 );
 	}
 	
 	delete qAvg2D;
