@@ -101,6 +101,8 @@ private:
 	int p_lowerThreshold;
 	int p_upperThreshold;
 	
+	std::string	p_outputPrefix;
+	
 	int p_maxHits;
 	int p_skipcount;
 	int p_hitcount;

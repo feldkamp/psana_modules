@@ -49,6 +49,10 @@ int create1DFromRawImageCSPAD( array2D *input, array1D *&output ){
 			}
 		}
 	}
+	
+	//transpose again to not screw up the original array....
+	//the two transposes are obviously not the smart way to do it... needs a fix at a certain point
+	input->transpose();
 	return 0;
 }
 
@@ -130,7 +134,7 @@ int createAssembledImageCSPAD( array1D *input, array1D *pixX, array1D *pixY, arr
 		cerr << "dim1() of data:" << input->dim1() << ", pixX:" << pixX->dim1() << ", pixY:" << pixY->dim1() << endl;
 		return 2;
 	}else{
-		cout << "Assembling CSPAD image. Output (" << NX_CSPAD << ", " << NY_CSPAD << ")" << endl;
+		//cout << "Assembling CSPAD image. Output (" << NX_CSPAD << ", " << NY_CSPAD << ")" << endl;
 	}
 	
 	//shift output arrays, if necessary, so that they start at zero

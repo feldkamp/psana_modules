@@ -60,7 +60,6 @@ assemble::assemble (const std::string& name)
 	, p_singleOutput(0)
 	, p_count(0)
 {	
-	p_outputPrefix			= configStr("outputPrefix", 		"img");
 	p_tifOut 				= config   ("tifOut", 				0);
 	p_edfOut 				= config   ("edfOut", 				1);
 	p_h5Out 				= config   ("h5Out", 				0);
@@ -87,7 +86,6 @@ void
 assemble::beginJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug, "assemble::beginJob()" );
-	MsgLog(name(), info, "output prefix = '" << p_outputPrefix << "'" );
 	MsgLog(name(), info, "tifOut            = '" << p_tifOut << "'" );
 	MsgLog(name(), info, "edfOut            = '" << p_edfOut << "'" );
 	MsgLog(name(), info, "h5Out             = '" << p_h5Out << "'" );
@@ -102,6 +100,8 @@ void
 assemble::beginRun(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "assemble::beginRun()" );
+	
+	p_outputPrefix = *( (shared_ptr<std::string>) evt.get(IDSTRING_OUTPUT_PREFIX) ).get();
 	
 //	p_pixX = ( (shared_ptr<array1D>) evt.get(IDSTRING_PX_X_int) ).get();
 //	p_pixY = ( (shared_ptr<array1D>) evt.get(IDSTRING_PX_Y_int) ).get();

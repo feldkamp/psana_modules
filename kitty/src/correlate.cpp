@@ -81,7 +81,6 @@ correlate::correlate (const std::string& name)
 	p_edfOut 			= config   ("edfOut", 				1);
 	p_h5Out 			= config   ("h5Out", 				0);
 	p_singleOutput		= config   ("singleOutput",			0);
-	p_outputPrefix		= configStr("outputPrefix", 		"corr");
 	
 	p_mask_fn			= configStr("mask", 				"");	
 	p_useMask			= config   ("useMask", 				0);
@@ -96,8 +95,8 @@ correlate::correlate (const std::string& name)
 	p_startQ			= config   ("startQ",				0);
 	p_stopQ				= config   ("stopQ",				p_startQ+p_nQ1);	
 
-	p_LUTx				= config   ("LUTx",					100);
-	p_LUTy				= config   ("LUTy",					100);
+	p_LUTx				= config   ("LUTx",					1000);
+	p_LUTy				= config   ("LUTy",					1000);
 	
 	io = new arraydataIO();
 
@@ -154,8 +153,8 @@ correlate::beginRun(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correlate::beginRun()" );
 	
-//	p_pixX = ( (shared_ptr<array1D>) evt.get(IDSTRING_PX_X_int) ).get();
-//	p_pixY = ( (shared_ptr<array1D>) evt.get(IDSTRING_PX_Y_int) ).get();
+	p_outputPrefix = *( (shared_ptr<std::string>) evt.get(IDSTRING_OUTPUT_PREFIX) ).get();
+
 	p_pixX_sp = evt.get(IDSTRING_PX_X_int); 
 	p_pixY_sp = evt.get(IDSTRING_PX_Y_int); 
 	
@@ -173,9 +172,7 @@ correlate::beginRun(Event& evt, Env& env)
 		dummy_cc->createLookupTable(p_LUTy, p_LUTx);
 		delete p_LUT;
 		p_LUT = new array2D( *(dummy_cc->lookupTable()) );
-		
-		//debug: write to disk
-		//io->writeToEDF( "LUT.edf", p_LUT );
+		//io->writeToEDF( "LUT.edf", p_LUT ); //write to disk for debugging
 	}
 	delete dummy_cc;
 	
@@ -212,7 +209,7 @@ correlate::event(Event& evt, Env& env)
 	string eventname_str = *( (shared_ptr<std::string>) evt.get(IDSTRING_CUSTOM_EVENTNAME) ).get();
 	
 	if (data){
-		MsgLog(name(), info, "read event data of size " << data->size() );
+		MsgLog(name(), debug, "read event data of size " << data->size() << " from ID string " << IDSTRING_CSPAD_DATA);
 		
 		//create cross correlator object that takes care of the computations
 		//the arguments that are passed to the constructor determine 2D/3D calculations with/without mask
@@ -296,6 +293,10 @@ correlate::event(Event& evt, Env& env)
 		p_qAvg->addArrayElementwise( cc->qAvg() );
 		p_iAvg->addArrayElementwise( cc->iAvg() );
 		
+		MsgLog(name(), debug, "cc->polar dims: rows,cols=(" << cc->polar()->dim1() << ", " << cc->polar()->dim2() << ")"  );
+		MsgLog(name(), debug, "p_polarAvg dims: rows,cols=(" << p_polarAvg->dim1() << ", " << p_polarAvg->dim2() << ")"  );
+		MsgLog(name(), debug, "cc->autoCorr dims: rows,cols=(" << cc->autoCorr()->dim1() << ", " << cc->autoCorr()->dim2() << ")"  );
+		MsgLog(name(), debug, "p_corrAvg dims: rows,cols=(" << p_corrAvg->dim1() << ", " << p_corrAvg->dim2() << ")"  );
 		delete cc;
 		
 		p_count++;

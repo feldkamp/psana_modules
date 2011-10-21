@@ -59,6 +59,7 @@ discriminate::discriminate (const std::string& name)
 	, p_useCorrectedData(0)
 	, p_lowerThreshold(0)
 	, p_upperThreshold(0)
+	, p_outputPrefix("")
 	, p_maxHits(0)
 	, p_skipcount(0)
 	, p_hitcount(0)
@@ -91,6 +92,8 @@ discriminate::discriminate (const std::string& name)
 	p_lowerThreshold 	= config("lowerThreshold", 			-10000000);
 	p_upperThreshold 	= config("upperThreshold", 			10000000);
 	p_maxHits			= config("maxHits",					10000000);
+	
+	p_outputPrefix		= configStr("outputPrefix", 		"out");
 	
 	p_useCorrectedData  = config("useCorrectedData",        1);
 	p_useShift			= config("useShift",				1);
@@ -147,6 +150,10 @@ void
 discriminate::beginRun(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "discriminate::beginRun()" );
+	
+	//put output string into event to make it accessible for all modules
+	shared_ptr<std::string> outputPrefix_sp( new std::string(p_outputPrefix) );
+	evt.put(outputPrefix_sp, IDSTRING_OUTPUT_PREFIX);
 
 	MsgLog(name(), debug, "------list of stored PVs------" );
 	const vector<string>& pvNames = env.epicsStore().pvNames();
@@ -296,13 +303,13 @@ discriminate::beginRun(Event& evt, Env& env)
 	evt.put( pixY_pix_sp, IDSTRING_PX_Y_pix);
 	
 	
-	MsgLog(name(), info, "------read pixel arrays from calib data------");	
-	MsgLog(name(), info, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
+	MsgLog(name(), debug, "------read pixel arrays from calib data------");	
+	MsgLog(name(), debug, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
 	
 	//shift pixel arrays to be centered around incoming beam at (0, 0)
 	//this only works exactly, when the beam was exactly centered in the CSPAD
@@ -340,15 +347,15 @@ discriminate::beginRun(Event& evt, Env& env)
 		pixY_q_sp->set(i, two_k * sin( atan(pixY_um_sp->get(i)/1000.0/detZ) ) );
 	}
 	
-	MsgLog(name(), info, "------shifted pixels arrays------");	
-	MsgLog(name(), info, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrX_q   min: " << pixX_q_sp->calcMin()   << ", max: " << pixX_q_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_q   min: " << pixY_q_sp->calcMin()   << ", max: " << pixY_q_sp->calcMax() );
+	MsgLog(name(), debug, "------shifted pixels arrays------");	
+	MsgLog(name(), debug, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrX_q   min: " << pixX_q_sp->calcMin()   << ", max: " << pixX_q_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrY_q   min: " << pixY_q_sp->calcMin()   << ", max: " << pixY_q_sp->calcMax() );
 }
 
 
@@ -415,8 +422,6 @@ discriminate::event(Event& evt, Env& env)
 	evt.put(eventname_sp, IDSTRING_CUSTOM_EVENTNAME);
 	
 	//get CSPAD data from evt object (out of XTC stream)
-//	Pds::Src exactSrc;				// Src object after the contents of m_sourceString have been evaluated (matched)
-//	shared_ptr<Psana::CsPad::DataV2> data = evt.get(m_dataSourceString, "calibrated", &exactSrc);
 	shared_ptr<Psana::CsPad::DataV2> data = evt.get(m_dataSourceString, "calibrated");
 	
 	//if no calibrated data was found in the event, use the raw data from the xtc file
@@ -425,7 +430,6 @@ discriminate::event(Event& evt, Env& env)
 		evtinfo << "pre-calibrated data ";
 	}else{
 		evtinfo << "non-calibrated data ";
-//		data = evt.get(m_dataSourceString, "", &exactSrc);
 		data = evt.get(m_dataSourceString);
 	}
 	

@@ -37,6 +37,7 @@ namespace kitty {
 	const std::string IDSTRING_PX_X_pix = "CSPAD_X_pix";
 	const std::string IDSTRING_PX_Y_pix = "CSPAD_Y_pix";
 	const std::string IDSTRING_CUSTOM_EVENTNAME = "CUSTOM_EVENTNAME";
+	const std::string IDSTRING_OUTPUT_PREFIX = "OUTPUT_PREFIX";
 	
 }//namespace
 

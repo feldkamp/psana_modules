@@ -64,7 +64,6 @@ makemask::makemask (const std::string& name)
 	
 	p_badPixelLowerBoundary	= config   ("badPixelLowerBoundary", 	0);
 	p_badPixelUpperBoundary	= config   ("badPixelUpperBoundary", 	1500);
-	p_outputPrefix			= configStr("outputPrefix", 			"mask");
 	p_mask_fn				= configStr("mask", 					"");
 	p_useMask				= config   ("useMask", 					0);
 	p_takeOutThirteenthRow	= config   ("takeOutThirteenthRow", 	1);
@@ -98,6 +97,7 @@ makemask::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "takeOutThirteenthRow = '" << p_takeOutThirteenthRow << "'" );
 	MsgLog(name(), info, "takeOutASICFrame = '" << p_takeOutASICFrame << "'" );
 
+	p_outputPrefix = *( (shared_ptr<std::string>) evt.get(IDSTRING_OUTPUT_PREFIX) ).get();
 
 	//read mask, if a file was specified
 	if (p_useMask){
@@ -228,11 +228,11 @@ makemask::endJob(Event& evt, Env& env)
 	}//for q
 	
 	
-	io->writeToEDF( p_outputPrefix+"_1D.edf", mask );
+	io->writeToEDF( p_outputPrefix+"_mask_1D.edf", mask );
 	
 	array2D* mask2D = new array2D;
 	createRawImageCSPAD( mask, mask2D );
-	io->writeToEDF( p_outputPrefix+"_raw2D.edf", mask2D );
+	io->writeToEDF( p_outputPrefix+"_mask_raw2D.edf", mask2D );
 	delete mask2D;
 	
 
