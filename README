@@ -12,11 +12,11 @@ kitty
 To build these modules on LCLS computers, you will need the "giraffe" library, available as a git repository at "feldkamp/giraffe".
 
 
-
 The release directory was created on 2-Sep-2011
 (sit_release = ana-0.3.22)
 
----execute the following on LCLS machines to create a fresh psana release directory, build an example module and test it:
+
+---execute the following commands on LCLS machines to create a fresh psana release directory, build an example module and test it:
 
     kinit
     newrel ana-current ana
@@ -25,15 +25,36 @@ The release directory was created on 2-Sep-2011
     newpkg kitty
     mkdir kitty/src
     mkdir kitty/include
-    codegen -l psana-module kitty correlation
+    codegen -l psana-module kitty correlate
+    codegen -l psana-module kitty correct
+    codegen -l psana-module kitty discriminate
+    codegen -l psana-module kitty assemble
     scons
     vi psana.cfg
     psana /reg/d/ana02/cxi/cxi35711/xtc/e86-r0020-s01-c00.xtc
 
 
-
 ---basic psana.cfg file contents:
 [psana]
-modules = PrintSeparator PrintEventId kitty.correlation
-[kitty.correlation]
+modules = PrintSeparator PrintEventId kitty.correlate kitty.correct kitty.discriminate kitty.assemble
+[kitty.correlate]
+[kitty.correct]
+[kitty.discriminate]
+[kitty.assemble]
 
+
+---execute the following commands to update the freshly created psana release directory to the current version of kitty:
+
+in local git repository:
+    git pull
+    ./upload $CASENAME
+
+on LCLS machine (where fresh repository was created):
+    cd ana/kitty/include/
+    ln -s /reg/neh/home/feldkamp/giraffe/arrayclasses.h arrayclasses.h
+    ln -s /reg/neh/home/feldkamp/giraffe/arraydataIO.h arraydataIO.h
+    ln -s /reg/neh/home/feldkamp/giraffe/fouriertransformer.h fouriertransformer.h
+    ln -s /reg/neh/home/feldkamp/giraffe/crosscorrelator.h crosscorrelator.h
+    cd ../../
+    scons
+    psana /reg/d/ana02/cxi/cxi35711/xtc/e86-r0020-s01-c00.xtc
