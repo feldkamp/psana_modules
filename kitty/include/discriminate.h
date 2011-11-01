@@ -101,6 +101,8 @@ private:
 	int p_lowerThreshold;
 	int p_upperThreshold;
 	
+	int p_discriminateAlogrithm;
+	
 	std::string	p_outputPrefix;
 	
 	int p_maxHits;

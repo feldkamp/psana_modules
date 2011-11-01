@@ -59,6 +59,7 @@ discriminate::discriminate (const std::string& name)
 	, p_useCorrectedData(0)
 	, p_lowerThreshold(0)
 	, p_upperThreshold(0)
+	, p_discriminateAlogrithm(0)
 	, p_outputPrefix("")
 	, p_maxHits(0)
 	, p_skipcount(0)
@@ -82,24 +83,25 @@ discriminate::discriminate (const std::string& name)
 	, m_pix_coords_cspad()
 {
 	// get the values from configuration or use defaults
-	m_dataSourceString	= configStr("dataSource",			"CxiDs1.0:Cspad.0");
-	m_calibSourceString	= configStr("calibSource",			"CxiDs1.0:Cspad.0");
-	m_calibDir      	= configStr("calibDir",				"/reg/d/psdm/CXI/cxi35711/calib");
-	m_typeGroupName 	= configStr("typeGroupName",		"CsPad::CalibV1");
-	m_tiltIsApplied 	= config   ("tiltIsApplied",		true);								//tilt angle correction
-	m_runNumber			= config   ("calibRunNumber",     	0);
+	m_dataSourceString			= configStr("dataSource",			"CxiDs1.0:Cspad.0");
+	m_calibSourceString			= configStr("calibSource",			"CxiDs1.0:Cspad.0");
+	m_calibDir      			= configStr("calibDir",				"/reg/d/psdm/CXI/cxi35711/calib");
+	m_typeGroupName 			= configStr("typeGroupName",		"CsPad::CalibV1");
+	m_tiltIsApplied 			= config   ("tiltIsApplied",		true);			//tilt angle correction
+	m_runNumber					= config   ("calibRunNumber",     	0);
 	
-	p_lowerThreshold 	= config("lowerThreshold", 			-10000000);
-	p_upperThreshold 	= config("upperThreshold", 			10000000);
-	p_maxHits			= config("maxHits",					10000000);
+	p_lowerThreshold 			= config("lowerThreshold", 			-10000000);
+	p_upperThreshold 			= config("upperThreshold", 			10000000);
+	p_discriminateAlogrithm 	= config("discriminateAlgorithm", 	0);
+	p_maxHits					= config("maxHits",					10000000);
 	
-	p_outputPrefix		= configStr("outputPrefix", 		"out");
+	p_outputPrefix				= configStr("outputPrefix", 		"out");
 	
-	p_useCorrectedData  = config("useCorrectedData",        1);
-	p_useShift			= config("useShift",				1);
-	p_shiftX			= config("shiftX",					-867.355);
-	p_shiftY			= config("shiftY",					-862.758);
-	p_detOffset 		= config("detOffset",				500.0 + 63.0);						// see explanation in header
+	p_useCorrectedData			= config("useCorrectedData",        1);
+	p_useShift					= config("useShift",				1);
+	p_shiftX					= config("shiftX",					-867.355);
+	p_shiftY					= config("shiftY",					-862.758);
+	p_detOffset 				= config("detOffset",				500.0 + 63.0);	// see explanation in header
 }
 
 //--------------
@@ -124,6 +126,7 @@ discriminate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "maxHits = " << p_maxHits );
 	MsgLog(name(), info, "lowerThreshold = " << p_lowerThreshold );
 	MsgLog(name(), info, "upperThreshold = " << p_upperThreshold );
+	MsgLog(name(), info, "discriminateAlgorithm = " << p_discriminateAlogrithm );
 	MsgLog(name(), info, "useShift = " << p_useShift );
 	MsgLog(name(), info, "shiftX = " << p_shiftX );
 	MsgLog(name(), info, "shiftY = " << p_shiftY );
@@ -411,10 +414,7 @@ discriminate::event(Event& evt, Env& env)
 
 	ostringstream evtinfo;
 	evtinfo <<  "evt#" << p_count << " ";
-	
-	double datasum = 0.;
-	int pxsum = 0;
-	
+
 	std::ostringstream osst;
 //	osst << "t" << eventId->time();
 	osst << std::setfill('0') << std::setw(10) << p_count;
@@ -440,23 +440,16 @@ discriminate::event(Event& evt, Env& env)
 	if (data.get()){
 		int nQuads = data->quads_shape().at(0);
 		for (int q = 0; q < nQuads; ++q) {
-			const Psana::CsPad::ElementV2& el = data->quads(q);
-			
+			const Psana::CsPad::ElementV2& el = data->quads(q);			
 			const int16_t* quad_data = el.data();
-			int quad_count = el.quad();				//quadrant number
 			std::vector<int> quad_shape = el.data_shape();
 			int actual2x1sPerQuad = quad_shape.at(0);
 			int actualPxPerQuad = actual2x1sPerQuad * nPxPer2x1;
 			
 			//go through the whole data of the quad, copy to array1D
 			for (int i = 0; i < actualPxPerQuad; i++){
-				datasum += quad_data[i];
 				raw1D->set( q*nMaxPxPerQuad +i, (double)quad_data[i] );
 			}
-			
-			pxsum += actualPxPerQuad;
-			MsgLog(name(), debug, "quad " << quad_count << " of " << nQuads 
-				<< " has " << actual2x1sPerQuad << " 2x1s, " << actualPxPerQuad << " pixels");
 		}//for all quads
 	}else{
 		MsgLog(name(), error, "could not get data from CSPAD " << m_dataSourceString << ". Skipping this event." );
@@ -464,28 +457,43 @@ discriminate::event(Event& evt, Env& env)
 		return;
 	}
 	
-	double avgPerPix = datasum/(double)pxsum;
-	evtinfo << "avg:" << setw(8) << avgPerPix << ", threshold delta (" 
-		<< setw(8) << avgPerPix-p_lowerThreshold << "/"
-		<< setw(8) << avgPerPix-p_upperThreshold << ") ";
+	// 'thresholdingAvg' can be different kinds of averages, depending on the disciminating algorithm
+	// the threshold limits are compared to this value in order to accept or reject this shot
+	double thresholdingAvg = 0;
 	
-	if ( avgPerPix <= p_lowerThreshold || avgPerPix >= p_upperThreshold ){
+	//select algorithm to calculate the thresholding average
+	if (p_discriminateAlogrithm == 1){				// NOT COMPLETELY TESTED, YET
+		int max_pos = 0;
+		array1D *shot_hist = new array1D();
+		array1D *shot_bins = new array1D();
+		//calculate a histogram of the non-negative values
+		raw1D->getHistogramInBoundaries(shot_hist, shot_bins, 500, 0, 500);
+		shot_hist->calcMax( max_pos );
+		thresholdingAvg = shot_bins->get(max_pos);
+		delete shot_bins;
+		delete shot_hist;
+	}else{
+		//if no other algorithm is specified, use a simple average across the whole detector
+		thresholdingAvg = raw1D->calcAvg();
+	}
+	
+	evtinfo << "avg:" << setw(8) << thresholdingAvg << ", threshold delta (" 
+			<< setw(8) << thresholdingAvg-p_lowerThreshold << "/"
+			<< setw(8) << thresholdingAvg-p_upperThreshold << ") ";
+			
+	if ( thresholdingAvg <= p_lowerThreshold || thresholdingAvg >= p_upperThreshold ){
 		evtinfo << " xxxxx REJECT xxxxx";
-
-		// all downstream modules will not be called
-		skip();
-		
 		p_skipcount++;
+		skip();		// all downstream modules will not be called
 	}else{
 		evtinfo << " --> ACCEPT (hit# " << p_hitcount << ") <--";
+		p_hitcount++;
 		
 		// add the data to the event so that other modules can access it
 		evt.put(raw1D_sp, IDSTRING_CSPAD_DATA);
 		
 		// put intensity in hit array
-		p_hitInt.push_back(avgPerPix);
-		
-		p_hitcount++;
+		p_hitInt.push_back(thresholdingAvg);
 	}
 
 	// output collected information...

@@ -197,10 +197,13 @@ assemble::endJob(Event& evt, Env& env)
 	if (p_useNormalization == 1){
 		double mean = p_sum->calcAvg();
 		p_sum->divideByValue( mean );
-	}
-	if (p_useNormalization == 2){
+		MsgLog(name(), info, "normalizing by mean value " << mean );
+	} else if (p_useNormalization == 2){
 		double max = p_sum->calcMax();
 		p_sum->divideByValue( max );
+		MsgLog(name(), info, "normalizing by max value " << max );
+	} else {
+		MsgLog(name(), info, "no normalization" );
 	}
 
 	//assemble ASICs
