@@ -116,6 +116,8 @@ private:
 	double p_shiftX;
 	double p_shiftY;
 	double p_detOffset;				// default = 500.0 + 63.0 = 563
+	
+	shared_ptr<array1D> p_sum_sp;	// keep a running sum of all events
 
 	std::vector<double> p_hitInt;	//vector to keep track of the hit intensity	
 	

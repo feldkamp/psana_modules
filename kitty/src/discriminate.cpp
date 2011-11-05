@@ -70,6 +70,7 @@ discriminate::discriminate (const std::string& name)
 	, p_shiftX(0)
 	, p_shiftY(0)
 	, p_detOffset(0)
+	, p_sum_sp()
 	, p_hitInt()
 	, m_dataSourceString("")
 	, m_calibSourceString("")
@@ -102,6 +103,8 @@ discriminate::discriminate (const std::string& name)
 	p_shiftX					= config("shiftX",					-867.355);
 	p_shiftY					= config("shiftY",					-862.758);
 	p_detOffset 				= config("detOffset",				500.0 + 63.0);	// see explanation in header
+	
+	p_sum_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
 }
 
 //--------------
@@ -183,7 +186,7 @@ discriminate::beginRun(Event& evt, Env& env)
 	runDesc.push_back("particle N_electrons");
 
 	runPVs.push_back("EVNT:SYS0:1:LCLSBEAMRATE");						//# 4
-	runDesc.push_back("LCLS repetition rate");
+	runDesc.push_back("LCLS repetition rate [Hz]");
 		
 	runPVs.push_back("SIOC:SYS0:ML00:AO195");							//# 5
 	runDesc.push_back("peak current after second bunch compressor");
@@ -198,13 +201,13 @@ discriminate::beginRun(Event& evt, Env& env)
 	runDesc.push_back("calculated number of photons");
 	
 	runPVs.push_back("SIOC:SYS0:ML00:AO541");							//# 9
-	runDesc.push_back("photon beam energy");
+	runDesc.push_back("photon beam energy [eV]");
 	
 	runPVs.push_back("SIOC:SYS0:ML00:AO627");							//# 10
 	runDesc.push_back("photon beam energy");
 	
 	runPVs.push_back("SIOC:SYS0:ML00:AO192");							//# 11
-	runDesc.push_back("wavelength in Angstrom");
+	runDesc.push_back("wavelength [nm]");
 	unsigned int lambda_no = 11;
 	
 	
@@ -236,9 +239,9 @@ discriminate::beginRun(Event& evt, Env& env)
 	if (runPVvalid.at(lambda_no) ){
 		lambda = runVals.at(lambda_no);
 	}
-	double two_k = 2*2*M_PI/lambda;								//in units of inv. Angstrom
+	double two_k = 2*2*M_PI/lambda;								//in units of inv. nanometers
 	MsgLog(name(), info, "detZ = " << detZ << " mm");				
-	MsgLog(name(), info, "2*k = " << two_k << "Å^-1" );
+	MsgLog(name(), info, "2*k = " << two_k << "nm^-1" );
 	MsgLog(name(), info, " ");
 	
 	std::list<EventKey> keys = evt.keys();
@@ -273,7 +276,7 @@ discriminate::beginRun(Event& evt, Env& env)
 	
 		//check psana's debug level
 		//....so we can get rid of the verbosity when we actually run a lot of data
-		MsgLogger::MsgLogLevel lvl(MsgLogger::MsgLogLevel::info);
+		MsgLogger::MsgLogLevel lvl(MsgLogger::MsgLogLevel::debug);
 		if ( MsgLogger::MsgLogger().logging(lvl) ) {
 			cout << "------------calibration data parser---------------" << endl;
 			m_cspad_calibpar->printCalibPars();
@@ -284,26 +287,21 @@ discriminate::beginRun(Event& evt, Env& env)
 		MsgLog(name(), error, "Could not retrieve calibration data");
 	}
 	
-	//---read calibration information arrays and add them to the event---
+	//---read calibration information arrays---
 	//---possibly take some of this out if not needed and memory is needed
 	//
 	// in microns
 	shared_ptr<array1D> pixX_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx) );
-	evt.put( pixX_um_sp, IDSTRING_PX_X_um);
 	shared_ptr<array1D> pixY_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_um(), nMaxTotalPx) );
-	evt.put( pixY_um_sp, IDSTRING_PX_Y_um);
 	
 	// in pixel index (integer pixel position only)
 	shared_ptr<array1D> pixX_int_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_int(), nMaxTotalPx) );
-	evt.put( pixX_int_sp, IDSTRING_PX_X_int);
 	shared_ptr<array1D> pixY_int_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_int(), nMaxTotalPx) );
-	evt.put( pixY_int_sp, IDSTRING_PX_Y_int);
 
 	// in pix (pixel index, including fraction)
 	shared_ptr<array1D> pixX_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_pix(), nMaxTotalPx) );
-	evt.put( pixX_pix_sp, IDSTRING_PX_X_pix);
 	shared_ptr<array1D> pixY_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_pix(), nMaxTotalPx) );
-	evt.put( pixY_pix_sp, IDSTRING_PX_Y_pix);
+
 	
 	
 	MsgLog(name(), debug, "------read pixel arrays from calib data------");	
@@ -343,22 +341,47 @@ discriminate::beginRun(Event& evt, Env& env)
 	pixY_pix_sp->subtractValue( shift_Y_pix );
 	
 	// create q-value vectors, (inverse nanometers)
-	shared_ptr<array1D> pixX_q_sp ( new array1D( pixX_um_sp.get() ) );
-	shared_ptr<array1D> pixY_q_sp ( new array1D( pixX_um_sp.get() ) );
+	shared_ptr<array1D> pixX_q_sp ( new array1D(nMaxTotalPx) );
+	shared_ptr<array1D> pixY_q_sp ( new array1D(nMaxTotalPx) );
+	shared_ptr<array1D> pixTwoTheta_sp ( new array1D(nMaxTotalPx) );
+	shared_ptr<array1D> pixPhi_sp ( new array1D(nMaxTotalPx) );
+			
 	for (unsigned int i = 0; i < pixX_q_sp->size(); i++){
-		pixX_q_sp->set(i, two_k * sin( atan(pixX_um_sp->get(i)/1000.0/detZ) ) );
-		pixY_q_sp->set(i, two_k * sin( atan(pixY_um_sp->get(i)/1000.0/detZ) ) );
+		double x_um = pixX_um_sp->get(i);
+		double y_um = pixY_um_sp->get(i);
+		double r_um = sqrt( x_um*x_um + y_um*y_um );
+		double twoTheta = atan( r_um/1000.0/detZ );
+		double phi = atan( y_um/x_um );
+		pixTwoTheta_sp->set(i, twoTheta);
+		pixPhi_sp->set(i, phi);
+		
+		pixX_q_sp->set(i, two_k * sin(twoTheta/2) * cos(phi) );
+		pixY_q_sp->set(i, two_k * sin(twoTheta/2) * sin(phi) );
 	}
 	
-	MsgLog(name(), debug, "------shifted pixels arrays------");	
-	MsgLog(name(), debug, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
-	MsgLog(name(), debug, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
-	MsgLog(name(), debug, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
-	MsgLog(name(), debug, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
-	MsgLog(name(), debug, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
-	MsgLog(name(), debug, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
-	MsgLog(name(), debug, "PixCoorArrX_q   min: " << pixX_q_sp->calcMin()   << ", max: " << pixX_q_sp->calcMax() );
-	MsgLog(name(), debug, "PixCoorArrY_q   min: " << pixY_q_sp->calcMin()   << ", max: " << pixY_q_sp->calcMax() );
+	MsgLog(name(), info, "------shifted pixels arrays------");	
+	MsgLog(name(), info, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrX_q   min: " << pixX_q_sp->calcMin()   << ", max: " << pixX_q_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_q   min: " << pixY_q_sp->calcMin()   << ", max: " << pixY_q_sp->calcMax() );
+	MsgLog(name(), info, "PixTwoTheta     min: " << pixTwoTheta_sp->calcMin()   << ", max: " << pixTwoTheta_sp->calcMax() );
+	MsgLog(name(), info, "PixPhi          min: " << pixPhi_sp->calcMin()   << ", max: " << pixPhi_sp->calcMax() );
+	
+	//add the calibration arrays to the event for other modules to use
+	evt.put( pixX_um_sp,  IDSTRING_PX_X_um);
+	evt.put( pixY_um_sp,  IDSTRING_PX_Y_um);
+	evt.put( pixX_int_sp, IDSTRING_PX_X_int);
+	evt.put( pixY_int_sp, IDSTRING_PX_Y_int);
+	evt.put( pixX_pix_sp, IDSTRING_PX_X_pix);
+	evt.put( pixY_pix_sp, IDSTRING_PX_Y_pix);
+	evt.put( pixX_q_sp,   IDSTRING_PX_X_q);
+	evt.put( pixY_q_sp,   IDSTRING_PX_Y_q);
+	evt.put( pixTwoTheta_sp,   IDSTRING_PX_TWOTHETA);
+	evt.put( pixPhi_sp,   IDSTRING_PX_PHI);	
 }
 
 
@@ -492,6 +515,9 @@ discriminate::event(Event& evt, Env& env)
 		// add the data to the event so that other modules can access it
 		evt.put(raw1D_sp, IDSTRING_CSPAD_DATA);
 		
+		// add to running sum
+		p_sum_sp->addArrayElementwise( raw1D_sp.get() );
+		
 		// put intensity in hit array
 		p_hitInt.push_back(thresholdingAvg);
 	}
@@ -535,11 +561,18 @@ discriminate::endJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "discriminate::endJob()" );
 
+	//create average out of raw sum
+	p_sum_sp->divideByValue( p_hitcount );
+	// add the average to the event so that other modules can access it
+	evt.put(p_sum_sp, IDSTRING_CSPAD_RUNAVGERAGE);
+
 	MsgLog(name(), info, "---------------------------------------------------");
 	MsgLog(name(), info, "processed events: " << p_count 
 		<< ", hits: " << p_hitcount 
 		<< ", skipped: " << p_skipcount 
 		<< ", hitrate: " << p_hitcount/(double)p_count * 100 << "%." );
+
+	MsgLog(name(), debug, "---complete histogram of averaged data---\n" << p_sum_sp->getHistogramASCII(50) );
 		
 	arraydata *hits = new arraydata(p_hitInt);
 	MsgLog(name(), info, "\n ------hit intensity histogram------\n" << hits->getHistogramASCII(30) );
