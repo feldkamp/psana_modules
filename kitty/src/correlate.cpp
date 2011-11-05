@@ -205,11 +205,11 @@ correlate::event(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correlate::event()" );
 
-	array1D *data = ( (shared_ptr<array1D>) evt.get(IDSTRING_CSPAD_DATA) ).get();
+	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
 	string eventname_str = *( (shared_ptr<std::string>) evt.get(IDSTRING_CUSTOM_EVENTNAME) ).get();
 	
-	if (data){
-		MsgLog(name(), debug, "read event data of size " << data->size() << " from ID string " << IDSTRING_CSPAD_DATA);
+	if (data_sp){
+		MsgLog(name(), debug, "read event data of size " << data_sp->size() << " from ID string " << IDSTRING_CSPAD_DATA);
 		
 		//create cross correlator object that takes care of the computations
 		//the arguments that are passed to the constructor determine 2D/3D calculations with/without mask
@@ -223,15 +223,15 @@ correlate::event(Event& evt, Env& env)
 				
 		if (p_autoCorrelateOnly) {
 			if (p_useMask) {											//auto-correlation 2D case, with mask
-				cc = new CrossCorrelator( data, p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
+				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
 			} else { 															//auto-correlation 2D case, no mask
-				cc = new CrossCorrelator( data, p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1 );
+				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1 );
 			}
 		} else {
 			if (p_useMask){												//full cross-correlation 3D case, with mask
-				cc = new CrossCorrelator( data, p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
+				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
 			} else { 															//full cross-correlation 3D case, no mask
-				cc = new CrossCorrelator( data, p_pixY_sp.get(), p_pixX_sp.get(), p_nQ1, p_nQ1, p_nQ2);
+				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nQ1, p_nQ1, p_nQ2);
 			}
 		}
 		
@@ -248,7 +248,6 @@ correlate::event(Event& evt, Env& env)
 		}
 		
 		MsgLog(name(), info, "calling alg " << p_alg << ", startQ=" << p_startQ << ", stopQ=" << p_stopQ );
-		
 		cc->run(p_startQ, p_stopQ, p_alg, true);
 
 		MsgLog(name(), info, "correlation calculation done. writing (single event) files.");
@@ -259,12 +258,8 @@ correlate::event(Event& evt, Env& env)
 					string ext = ".h5";
 					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_xaca"+ext, cc->autoCorr() );
 					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_polar"+ext, cc->polar() );
-					//1D output not implemented just yet, using edf for the moment
-//					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, cc->qAvg() );
-//					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, cc->iAvg() );
-					ext = ".edf";
-					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, cc->qAvg() );
-					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, cc->iAvg() );				
+					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, cc->qAvg() );
+					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, cc->iAvg() );			
 				}
 				if (p_edfOut){
 					string ext = ".edf";

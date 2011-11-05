@@ -144,7 +144,10 @@ correct::beginJob(Event& evt, Env& env)
 			}else if (ext == "h5" || ext == "hdf5" || ext == "H5"){		// read 2D 'raw' image
 				array2D *from_file = new array2D;
 				fail = io->readFromHDF5( p_gain_fn, from_file );
-				if (!fail) create1DFromRawImageCSPAD(from_file, p_gain);
+				if (!fail) {
+					MsgLog(name(), info, "rows: " << from_file->dim1() << ", cols: " << from_file->dim2() );
+					create1DFromRawImageCSPAD(from_file, p_gain);
+				}
 				delete from_file;
 			}else{
 				MsgLog(name(), error, "Extension '" << ext << "' found in '" << p_gain_fn << "' is not valid. "
@@ -224,35 +227,35 @@ correct::event(Event& evt, Env& env)
 	MsgLog(name(), debug,  "correct::event()" );
 	int hist_size = 50;
 
-	array1D *data = ((shared_ptr<array1D>) evt.get(IDSTRING_CSPAD_DATA)).get();
+	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
 	
 	
-	if (data){
-		MsgLog(name(), debug, "read event data of size " << data->size() );
-		MsgLog(name(), debug, "---histogram of event data before correction---\n" 
-			<< data->getHistogramASCII(hist_size) );
+	if (data_sp){
+		MsgLog(name(), debug, "read event data of size " << data_sp->size() );
+		MsgLog(name(), debug, "\n---histogram of event data before correction---\n" 
+			<< data_sp->getHistogramASCII(hist_size) );
 		
 		//-------------------------------------------------background
 		if (p_useBack){
-			data->subtractArrayElementwise( p_back );
+			data_sp->subtractArrayElementwise( p_back );
 		}
 
 		//-------------------------------------------------gain		
 		if (p_useGain){
-			data->divideByArrayElementwise( p_gain );
+			data_sp->divideByArrayElementwise( p_gain );
 		}
 		
 		//-------------------------------------------------mask
 		if (p_useMask){
-			for (unsigned int i = 0; i < data->size(); i++){
+			for (unsigned int i = 0; i < data_sp->size(); i++){
 				if (p_mask->get(i) < 0.9){
-					data->set(i, 0);
+					data_sp->set(i, 0);
 				}
 			}
 		}
 		
-		MsgLog(name(), debug, "---histogram of event data after correction---\n" 
-			<< data->getHistogramASCII(hist_size) );
+		MsgLog(name(), debug, "\n---histogram of event data after correction---\n" 
+			<< data_sp->getHistogramASCII(hist_size) );
 		
 		p_count++;	
 	}else{
