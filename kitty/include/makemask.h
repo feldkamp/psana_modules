@@ -97,7 +97,6 @@ private:
 	int p_takeOutASICFrame;
 	
 	arraydataIO *io;
-	array1D *p_sum;
 	array1D *p_mask;		//mask read from file
 
 	int p_count;

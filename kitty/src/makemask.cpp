@@ -56,7 +56,6 @@ makemask::makemask (const std::string& name)
 	, p_takeOutThirteenthRow(0)
 	, p_takeOutASICFrame(0)
 	, io(0)
-	, p_sum(0)
 	, p_mask(0)
 	, p_count(0)
 {
@@ -70,7 +69,6 @@ makemask::makemask (const std::string& name)
 	p_takeOutASICFrame		= config   ("takeOutASICFrame", 		1);
 		
 	io = new arraydataIO();
-	p_sum = new array1D( nMaxTotalPx );
 }
 
 //--------------
@@ -79,7 +77,6 @@ makemask::makemask (const std::string& name)
 makemask::~makemask ()
 {
 	delete io;
-	delete p_sum;
 	delete p_mask;
 }
 
@@ -89,7 +86,7 @@ makemask::~makemask ()
 void 
 makemask::beginJob(Event& evt, Env& env)
 {
-	MsgLog(name(), debug, "makemask::beginJob()" );
+	MsgLog(name(), debug, "beginJob()" );
 	MsgLog(name(), info, "badPixelLowerBoundary = '" << p_badPixelLowerBoundary << "'" );	
 	MsgLog(name(), info, "badPixelUpperBoundary = '" << p_badPixelUpperBoundary << "'" );
 	MsgLog(name(), info, "mask file = '" << p_mask_fn << "'" );
@@ -123,7 +120,7 @@ makemask::beginJob(Event& evt, Env& env)
 void 
 makemask::beginRun(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "makemask::beginRun()" );
+	MsgLog(name(), debug,  "beginRun()" );
 }
 
 
@@ -132,7 +129,7 @@ makemask::beginRun(Event& evt, Env& env)
 void 
 makemask::beginCalibCycle(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "makemask::beginCalibCycle()" );
+	MsgLog(name(), debug,  "beginCalibCycle()" );
 }
 
 
@@ -142,18 +139,7 @@ makemask::beginCalibCycle(Event& evt, Env& env)
 void 
 makemask::event(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "makemask::event()" );
-
-	array1D *data = ((shared_ptr<array1D>) evt.get(IDSTRING_CSPAD_DATA)).get();
-	if (data){
-		MsgLog(name(), debug, "read event data of size " << data->size() );
-
-		p_sum->addArrayElementwise( data );
-	
-		p_count++;	
-	}else{
-		MsgLog(name(), warning, "could not get CSPAD data" );
-	}
+	MsgLog(name(), debug,  "event()" );
 }
   
   
@@ -162,7 +148,7 @@ makemask::event(Event& evt, Env& env)
 void 
 makemask::endCalibCycle(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "makemask::endCalibCycle()" );
+	MsgLog(name(), debug,  "endCalibCycle()" );
 }
 
 
@@ -171,7 +157,7 @@ makemask::endCalibCycle(Event& evt, Env& env)
 void 
 makemask::endRun(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "makemask::endRun()" );
+	MsgLog(name(), debug,  "endRun()" );
 }
 
 
@@ -180,10 +166,9 @@ makemask::endRun(Event& evt, Env& env)
 void 
 makemask::endJob(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "makemask::endJob()" );
+	MsgLog(name(), debug,  "endJob()" );
 
-	//create average out of raw sum
-	p_sum->divideByValue( p_count );
+	shared_ptr<array1D> avg_sp = evt.get(IDSTRING_CSPAD_RUNAVGERAGE);
 	
 	array1D *mask = NULL;
 	if (p_useMask){
@@ -196,8 +181,8 @@ makemask::endJob(Event& evt, Env& env)
 	}
 	
 	//set mask to 1 if pixel is valid, otherwise, leave 0
-	for (unsigned int i = 0; i<p_sum->size(); i++){
-		if ( (p_sum->get(i) < p_badPixelLowerBoundary) || (p_sum->get(i) > p_badPixelUpperBoundary) ){
+	for (unsigned int i = 0; i<avg_sp->size(); i++){
+		if ( (avg_sp->get(i) < p_badPixelLowerBoundary) || (avg_sp->get(i) > p_badPixelUpperBoundary) ){
 			//pixel seems bad: change mask and exclude this pixel
 			mask->set(i, 0);
 		}else{
@@ -237,8 +222,8 @@ makemask::endJob(Event& evt, Env& env)
 	
 
 	MsgLog(name(), info, "---histogram of mask---\n" << mask->getHistogramASCII(2) );
-//	MsgLog(name(), info, "---complete histogram of averaged data---\n" << p_sum->getHistogramASCII(50) );
-	MsgLog(name(), info, "---partial histogram of averaged data---\n" << p_sum->getHistogramInBoundariesASCII(100, -100, 400) );
+//	MsgLog(name(), info, "---complete histogram of averaged data---\n" << avg_sp->getHistogramASCII(50) );
+	MsgLog(name(), info, "---partial histogram of averaged data---\n" << avg_sp->getHistogramInBoundariesASCII(100, -100, 400) );
 	
 	delete mask;
 }
