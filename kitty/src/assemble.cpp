@@ -51,7 +51,6 @@ assemble::assemble (const std::string& name)
 	, p_outputPrefix("")
 	, p_useNormalization(0)
 	, io(0)
-	, p_sum(0)
 	, p_pixX_sp()
 	, p_pixY_sp()
 	, p_tifOut(0)
@@ -66,7 +65,7 @@ assemble::assemble (const std::string& name)
 	p_singleOutput			= config   ("singleOutput",			0);
 	p_useNormalization 		= config   ("useNormalization", 	0);
 	
-	p_sum = new array1D(nMaxTotalPx);
+
 	io = new arraydataIO();
 }
 
@@ -76,7 +75,6 @@ assemble::assemble (const std::string& name)
 assemble::~assemble ()
 {
 	delete io;
-	delete p_sum;
 }
 
 
@@ -103,8 +101,6 @@ assemble::beginRun(Event& evt, Env& env)
 	
 	p_outputPrefix = *( (shared_ptr<std::string>) evt.get(IDSTRING_OUTPUT_PREFIX) ).get();
 	
-//	p_pixX = ( (shared_ptr<array1D>) evt.get(IDSTRING_PX_X_int) ).get();
-//	p_pixY = ( (shared_ptr<array1D>) evt.get(IDSTRING_PX_Y_int) ).get();
 	p_pixX_sp = evt.get(IDSTRING_PX_X_int); 
 	p_pixY_sp = evt.get(IDSTRING_PX_Y_int); 
 
@@ -137,14 +133,12 @@ assemble::event(Event& evt, Env& env)
 	string eventname_str = *( (shared_ptr<string>) evt.get(IDSTRING_CUSTOM_EVENTNAME) ).get();
 	
 	if (data_sp){
-		MsgLog(name(), debug, "read event data of size " << data_sp->size() );
-		p_sum->addArrayElementwise( data_sp.get() );	
+		MsgLog(name(), debug, "read event data of size " << data_sp->size() );	
 		p_count++;	
 		
 		if ( p_singleOutput ){
-
 			array2D *assembled2D = 0;
-			int fail_asm = createAssembledImageCSPAD( p_sum, p_pixX_sp.get(), p_pixY_sp.get(), assembled2D );
+			int fail_asm = createAssembledImageCSPAD( data_sp.get(), p_pixX_sp.get(), p_pixY_sp.get(), assembled2D );
 			if ( !(p_count % p_singleOutput) ){
 				if (p_edfOut){
 					if (!fail_asm) io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_asm2D.edf", assembled2D );
@@ -157,6 +151,9 @@ assemble::event(Event& evt, Env& env)
 				}
 			}//if modulo 
 			delete assembled2D;
+
+		MsgLog(name(), debug, "\n---histogram of event data used in assembly---\n" 
+			<< data_sp->getHistogramASCII(50) );
 
 		}//if singleOutput
 	}else{
@@ -189,18 +186,17 @@ void
 assemble::endJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "assemble::endJob()" );
-	
-	//create average out of raw sum
-	p_sum->divideByValue( p_count );
+
+	shared_ptr<array1D> avg_sp = evt.get(IDSTRING_CSPAD_RUNAVGERAGE);
 
 	//optional normalization		
 	if (p_useNormalization == 1){
-		double mean = p_sum->calcAvg();
-		p_sum->divideByValue( mean );
+		double mean = avg_sp->calcAvg();
+		avg_sp->divideByValue( mean );
 		MsgLog(name(), info, "normalizing by mean value " << mean );
 	} else if (p_useNormalization == 2){
-		double max = p_sum->calcMax();
-		p_sum->divideByValue( max );
+		double max = avg_sp->calcMax();
+		avg_sp->divideByValue( max );
 		MsgLog(name(), info, "normalizing by max value " << max );
 	} else {
 		MsgLog(name(), info, "no normalization" );
@@ -208,35 +204,33 @@ assemble::endJob(Event& evt, Env& env)
 
 	//assemble ASICs
 	array2D *assembled2D = 0;
-	int fail_asm = createAssembledImageCSPAD( p_sum, p_pixX_sp.get(), p_pixY_sp.get(), assembled2D );
+	int fail_asm = createAssembledImageCSPAD( avg_sp.get(), p_pixX_sp.get(), p_pixY_sp.get(), assembled2D );
 		
 	//output of 2D raw image (cheetah-style)
 	array2D *raw2D = 0;
-	int fail_raw = createRawImageCSPAD( p_sum, raw2D );
+	int fail_raw = createRawImageCSPAD( avg_sp.get(), raw2D );
 	
 	string ext = "";
 	if (p_edfOut){
 		ext = ".edf";
-		io->writeToEDF( p_outputPrefix+"_avg_1D.edf", p_sum );
+		io->writeToEDF( p_outputPrefix+"_avg_1D.edf", avg_sp.get() );
 		if (!fail_raw) io->writeToEDF( p_outputPrefix+"_avg_raw2D"+ext, raw2D );
 		if (!fail_asm) io->writeToEDF( p_outputPrefix+"_avg_asm2D"+ext, assembled2D );
 	}
 	if (p_h5Out){
 		ext = ".h5";
-		//io->writeToHDF5( p_outputPrefix+"_avg_1D"+ext, p_sum );
+		//io->writeToHDF5( p_outputPrefix+"_avg_1D"+ext, avg_sp.get() );
 		if (!fail_raw) io->writeToHDF5( p_outputPrefix+"_avg_raw2D"+ext, raw2D );
 		if (!fail_asm) io->writeToHDF5( p_outputPrefix+"_avg_asm2D"+ext, assembled2D );
 	}
 	if (p_tifOut){
 		ext = ".tif";
-		//io->writeToTiff( p_outputPrefix+"_avg_1D"+ext, p_sum );
+		//io->writeToTiff( p_outputPrefix+"_avg_1D"+ext, avg_sp.get() );
 		if (!fail_raw) io->writeToTiff( p_outputPrefix+"_avg_raw2D"+ext, raw2D );
 		if (!fail_asm) io->writeToTiff( p_outputPrefix+"_avg_asm2D"+ext, assembled2D );
 	}
 	delete raw2D;
 	delete assembled2D;
-	
-	MsgLog(name(), debug, "---complete histogram of averaged data---\n" << p_sum->getHistogramASCII(50) );
 }
 
 
