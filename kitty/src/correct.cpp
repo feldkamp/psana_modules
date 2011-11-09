@@ -38,9 +38,6 @@ using std::string;
 using namespace kitty;
 PSANA_MODULE_FACTORY(correct)
 
-//#define WAIT usleep(1000000)
-#define WAIT std::cerr << "continue by pressing the <return> key..."; std::cin.get();
-
 //		----------------------------------------
 // 		-- Public Function Member Definitions --
 //		----------------------------------------
@@ -100,25 +97,18 @@ correct::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "use gain correction = '" << p_useGain << "'" );
 	MsgLog(name(), info, "mask file = '" << p_mask_fn << "'" );
 	MsgLog(name(), info, "use mask correction = '" << p_useMask << "'" );
-		
+	
 	//read background, if a file was specified
 	if (p_useBack){
 		if (p_back_fn != ""){
-			if (!p_back) 
-				p_back = new array1D(nMaxTotalPx);
-			int fail = 0;
-			string ext = getExt( p_back_fn );
-			if (ext == "edf"){											// read 1D
-				fail = io->readFromEDF( p_back_fn, p_back );
-			}else if (ext == "h5" || ext == "hdf5" || ext == "H5"){		// read 2D 'raw' image
-				array2D *from_file = new array2D;
-				fail = io->readFromHDF5( p_back_fn, from_file );
-				if (!fail) create1DFromRawImageCSPAD(from_file, p_back);
-				delete from_file;
-			}else{
-				MsgLog(name(), error, "Extension '" << ext << "' found in '" << p_back_fn << "' is not valid. "
-					<< "Should be edf or h5 ");
-			}
+			delete p_back;
+			p_back = new array1D(nMaxTotalPx);
+			
+			array2D *img2D = 0;
+			int fail = io->readFromFile( p_back_fn, img2D );
+			create1DFromRawImageCSPAD( img2D, p_back );
+			delete img2D;
+						
 			if (!fail){
 				MsgLog(name(), info, "histogram of background read\n" << p_back->getHistogramASCII(20) );
 			}else{
@@ -135,30 +125,20 @@ correct::beginJob(Event& evt, Env& env)
 	//read gainmap, if a file was specified
 	if (p_useGain){
 		if (p_gain_fn != ""){
-			if (!p_gain) 
-				p_gain = new array1D(nMaxTotalPx);
-			int fail = 0;
-			string ext = getExt( p_gain_fn );
-			if (ext == "edf"){									// read 1D
-				fail = io->readFromEDF( p_gain_fn, p_gain );
-			}else if (ext == "h5" || ext == "hdf5" || ext == "H5"){		// read 2D 'raw' image
-				array2D *from_file = new array2D;
-				fail = io->readFromHDF5( p_gain_fn, from_file );
-				if (!fail) {
-					MsgLog(name(), info, "rows: " << from_file->dim1() << ", cols: " << from_file->dim2() );
-					create1DFromRawImageCSPAD(from_file, p_gain);
-				}
-				delete from_file;
-			}else{
-				MsgLog(name(), error, "Extension '" << ext << "' found in '" << p_gain_fn << "' is not valid. "
-					<< "Should be edf or h5 ");
-			}
+			delete p_gain;
+			p_gain = new array1D(nMaxTotalPx);
+
+			array2D *img2D = 0;
+			int fail = io->readFromFile( p_gain_fn, img2D );
+			create1DFromRawImageCSPAD( img2D, p_gain );
+			delete img2D;			
+
 			if (!fail){
 				MsgLog(name(), info, "histogram of gain map read\n" << p_gain->getHistogramASCII(20) );	
 			}else{
 				MsgLog(name(), warning, "Could not read gainmap, continuing without gain correction!");
-				p_useGain = 0;
 				WAIT;
+				p_useGain = 0;
 			}
 		}else{
 			MsgLog(name(), warning, "No gain file specified in config file, continuing without gain correction!");
@@ -169,27 +149,20 @@ correct::beginJob(Event& evt, Env& env)
 	//read mask, if a file was specified
 	if (p_useMask){
 		if (p_mask_fn != ""){
-			if (!p_mask)
-				p_mask = new array1D(nMaxTotalPx);
-			int fail = 0;
-			string ext = getExt( p_mask_fn );
-			if (ext == "edf"){									// read 1D
-				fail = io->readFromEDF( p_mask_fn, p_mask );
-			}else if (ext == "h5" || ext == "hdf5" || ext == "H5"){		// read 2D 'raw' image
-				array2D *from_file = new array2D;
-				fail = io->readFromHDF5( p_mask_fn, from_file );
-				if (!fail) create1DFromRawImageCSPAD(from_file, p_mask);
-				delete from_file;
-			}else{
-				MsgLog(name(), error, "Extension '" << ext << "' found in '" << p_mask_fn << "' is not valid. "
-					<< "Should be edf or h5 ");
-			}
+			delete p_mask;
+			p_mask = new array1D(nMaxTotalPx);
+
+			array2D *img2D = 0;
+			int	fail = io->readFromFile( p_mask_fn, img2D );
+			create1DFromRawImageCSPAD( img2D, p_mask );
+			delete img2D;
+			
 			if (!fail){
 				MsgLog(name(), info, "histogram of mask read\n" << p_mask->getHistogramASCII(2) );	
 			}else{
 				MsgLog(name(), warning, "Could not read mask, continuing without mask correction!");
-				p_useMask = 0;	
 				WAIT;
+				p_useMask = 0;
 			}
 		}else{
 			MsgLog(name(), warning, "No mask file specified in config file, continuing without mask correction!");
@@ -235,23 +208,25 @@ correct::event(Event& evt, Env& env)
 		MsgLog(name(), debug, "\n---histogram of event data before correction---\n" 
 			<< data_sp->getHistogramASCII(hist_size) );
 		
+		int fail = 0;
 		//-------------------------------------------------background
 		if (p_useBack){
-			data_sp->subtractArrayElementwise( p_back );
+			fail += data_sp->subtractArrayElementwise( p_back );
 		}
 
 		//-------------------------------------------------gain		
 		if (p_useGain){
-			data_sp->divideByArrayElementwise( p_gain );
+			fail += data_sp->divideByArrayElementwise( p_gain );
 		}
 		
 		//-------------------------------------------------mask
 		if (p_useMask){
-			for (unsigned int i = 0; i < data_sp->size(); i++){
-				if (p_mask->get(i) < 0.9){
-					data_sp->set(i, 0);
-				}
-			}
+			fail += data_sp->applyMask( p_mask );
+		}
+		
+		if (fail){
+			MsgLog(name(), error, "At least one correction operation failed.");
+			WAIT;
 		}
 		
 		MsgLog(name(), debug, "\n---histogram of event data after correction---\n" 
