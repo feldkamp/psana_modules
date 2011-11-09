@@ -161,16 +161,4 @@ int createAssembledImageCSPAD( array1D *input, array1D *pixX, array1D *pixY, arr
 }
 
 
-//-------------------------------------------------------------getExt
-
-//-------------------------------------------------------------
-std::string getExt(std::string filename){
-	char separator = '.';
-	//find separator dot from the end of the string
-	size_t pos = filename.rfind( separator );
-	//get extension without the '.'
-	string ext = filename.substr( pos+1, filename.length() );
-	return ext;
-}
-
 

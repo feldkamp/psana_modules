@@ -14,6 +14,10 @@
 #include <string>
 		
 
+//#define WAIT usleep(1000000)
+#define WAIT std::cerr << "continue by pressing the <return> key..."; std::cin.get();
+
+
 //-------------functions for the CSPAD detector-------------
 int create1DFromRawImageCSPAD( array2D *input, array1D *&output );
 
@@ -23,6 +27,5 @@ int createAssembledImageCSPAD( array1D *input, array1D *pixX, array1D *pixY, arr
 			
 
 
-std::string getExt(std::string filename);
 			
 #endif
