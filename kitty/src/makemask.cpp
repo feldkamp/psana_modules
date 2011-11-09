@@ -43,6 +43,10 @@ PSANA_MODULE_FACTORY(makemask)
 
 namespace kitty {
 
+//define what values in the mask is interpreted as good and bad pixels
+const int GOOD = 1;
+const int BAD = 0; 
+
 //----------------
 // Constructors --
 //----------------
@@ -57,6 +61,7 @@ makemask::makemask (const std::string& name)
 	, p_takeOutASICFrame(0)
 	, io(0)
 	, p_mask(0)
+	, p_sum_sp()
 	, p_count(0)
 {
   // get the values from configuration or use defaults
@@ -69,6 +74,7 @@ makemask::makemask (const std::string& name)
 	p_takeOutASICFrame		= config   ("takeOutASICFrame", 		1);
 		
 	io = new arraydataIO();
+	p_sum_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
 }
 
 //--------------
@@ -94,14 +100,18 @@ makemask::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "takeOutThirteenthRow = '" << p_takeOutThirteenthRow << "'" );
 	MsgLog(name(), info, "takeOutASICFrame = '" << p_takeOutASICFrame << "'" );
 
-	p_outputPrefix = *( (shared_ptr<std::string>) evt.get(IDSTRING_OUTPUT_PREFIX) ).get();
-
 	//read mask, if a file was specified
 	if (p_useMask){
 		if (p_mask_fn != ""){
 			delete p_mask;
 			p_mask = new array1D;
-			int fail = io->readFromEDF( p_mask_fn, p_mask );
+						
+			array2D *img2D = 0;
+			int fail = io->readFromFile( p_mask_fn, img2D );
+			create1DFromRawImageCSPAD( img2D, p_mask );
+			delete img2D;
+			
+			
 			MsgLog(name(), info, "histogram of mask read\n" << p_mask->getHistogramASCII(2) );
 			if (fail){
 				MsgLog(name(), warning, "Could not read mask, continuing without mask correction!");
@@ -121,6 +131,8 @@ void
 makemask::beginRun(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "beginRun()" );
+	
+	p_outputPrefix = *( (shared_ptr<std::string>) evt.get(IDSTRING_OUTPUT_PREFIX) ).get();
 }
 
 
@@ -140,6 +152,11 @@ void
 makemask::event(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "event()" );
+	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
+	
+	if (data_sp){
+		p_sum_sp->addArrayElementwise( data_sp.get() );	
+	}
 }
   
   
@@ -168,7 +185,8 @@ makemask::endJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "endJob()" );
 
-	shared_ptr<array1D> avg_sp = evt.get(IDSTRING_CSPAD_RUNAVGERAGE);
+	//create average out of raw sum
+	p_sum_sp->divideByValue( p_count );
 	
 	array1D *mask = NULL;
 	if (p_useMask){
@@ -177,16 +195,17 @@ makemask::endJob(Event& evt, Env& env)
 	}else{
 		//allocate a mask (initially 1 everywhere)
 		mask = new array1D( nMaxTotalPx );
-		mask->ones();
+		mask->zeros();
 	}
 	
 	//set mask to 1 if pixel is valid, otherwise, leave 0
-	for (unsigned int i = 0; i<avg_sp->size(); i++){
-		if ( (avg_sp->get(i) < p_badPixelLowerBoundary) || (avg_sp->get(i) > p_badPixelUpperBoundary) ){
-			//pixel seems bad: change mask and exclude this pixel
-			mask->set(i, 0);
+	for (unsigned int i = 0; i<p_sum_sp->size(); i++){
+		if ( (p_sum_sp->get(i) < p_badPixelLowerBoundary) || (p_sum_sp->get(i) > p_badPixelUpperBoundary) ){
+			//pixel seems bad: exclude this pixel
+			mask->set(i, BAD);
 		}else{
-			//pixel seems valid: do not change mask
+			//pixel seems valid: keep this pixel
+			mask->set(i, GOOD);
 		}
 	}
 	
@@ -201,11 +220,11 @@ makemask::endJob(Event& evt, Env& env)
 					int index = q*nMaxPxPerQuad + s*nPxPer2x1 + c*nRowsPer2x1 + r;
 					if ( p_takeOutASICFrame && 
 						(r==0 || r==nRowsPerASIC-1 || r==nRowsPerASIC || r==2*nRowsPerASIC-1 || c==0 || c==nColsPerASIC-1) ){
-						mask->set( index, 0 );
+						mask->set( index, BAD );
 					}//if
 					if ( p_takeOutThirteenthRow && 
 						(r==nRowsPerASIC-13 || r==2*nRowsPerASIC-13) ){
-							mask->set( index, 0 );
+							mask->set( index, BAD );
 					}//if
 				}//for r
 			}//for c
@@ -217,13 +236,14 @@ makemask::endJob(Event& evt, Env& env)
 	
 	array2D* mask2D = new array2D;
 	createRawImageCSPAD( mask, mask2D );
-	io->writeToEDF( p_outputPrefix+"_mask_raw2D.edf", mask2D );
+	//io->writeToEDF( p_outputPrefix+"_mask_raw2D.edf", mask2D );
+	io->writeToHDF5( p_outputPrefix+"_mask_raw2D.h5", mask2D );
 	delete mask2D;
 	
 
 	MsgLog(name(), info, "---histogram of mask---\n" << mask->getHistogramASCII(2) );
-//	MsgLog(name(), info, "---complete histogram of averaged data---\n" << avg_sp->getHistogramASCII(50) );
-	MsgLog(name(), info, "---partial histogram of averaged data---\n" << avg_sp->getHistogramInBoundariesASCII(100, -100, 400) );
+//	MsgLog(name(), info, "---complete histogram of averaged data---\n" << p_sum_sp->getHistogramASCII(50) );
+	MsgLog(name(), info, "---partial histogram of averaged data---\n" << p_sum_sp->getHistogramInBoundariesASCII(100, -100, 400) );
 	
 	delete mask;
 }

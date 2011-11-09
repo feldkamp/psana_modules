@@ -98,6 +98,8 @@ private:
 	
 	arraydataIO *io;
 	array1D *p_mask;		//mask read from file
+	
+	shared_ptr<array1D> p_sum_sp;	// keep a running sum of all event	
 
 	int p_count;
 };
