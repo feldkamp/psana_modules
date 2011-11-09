@@ -102,6 +102,8 @@ private:
 	
 	shared_ptr<array1D> p_pixX_sp;
 	shared_ptr<array1D> p_pixY_sp;
+	
+	shared_ptr<array1D> p_sum_sp;	// keep a running sum of all event
 
 	int p_tifOut;
 	int p_edfOut;

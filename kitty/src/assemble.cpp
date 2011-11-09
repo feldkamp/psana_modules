@@ -53,6 +53,7 @@ assemble::assemble (const std::string& name)
 	, io(0)
 	, p_pixX_sp()
 	, p_pixY_sp()
+	, p_sum_sp()
 	, p_tifOut(0)
 	, p_edfOut(0)
 	, p_h5Out(0)
@@ -67,6 +68,7 @@ assemble::assemble (const std::string& name)
 	
 
 	io = new arraydataIO();
+	p_sum_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
 }
 
 //--------------
@@ -152,10 +154,13 @@ assemble::event(Event& evt, Env& env)
 			}//if modulo 
 			delete assembled2D;
 
-		MsgLog(name(), debug, "\n---histogram of event data used in assembly---\n" 
-			<< data_sp->getHistogramASCII(50) );
-
+			//MsgLog(name(), debug, "\n---histogram of event data used in assembly---\n" 
+			//	<< data_sp->getHistogramASCII(50) );
 		}//if singleOutput
+	
+		// add to running sum
+		p_sum_sp->addArrayElementwise( data_sp.get() );
+		
 	}else{
 		MsgLog(name(), warning, "could not get CSPAD data" );
 	}
@@ -187,50 +192,51 @@ assemble::endJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "assemble::endJob()" );
 
-	shared_ptr<array1D> avg_sp = evt.get(IDSTRING_CSPAD_RUNAVGERAGE);
+	//create average out of raw sum
+	p_sum_sp->divideByValue( p_count );
 
 	//optional normalization		
 	if (p_useNormalization == 1){
-		double mean = avg_sp->calcAvg();
-		avg_sp->divideByValue( mean );
+		double mean = p_sum_sp->calcAvg();
+		p_sum_sp->divideByValue( mean );
 		MsgLog(name(), info, "normalizing by mean value " << mean );
 	} else if (p_useNormalization == 2){
-		double max = avg_sp->calcMax();
-		avg_sp->divideByValue( max );
+		double max = p_sum_sp->calcMax();
+		p_sum_sp->divideByValue( max );
 		MsgLog(name(), info, "normalizing by max value " << max );
 	} else {
 		MsgLog(name(), info, "no normalization" );
 	}
 
 	//assemble ASICs
-	array2D *assembled2D = 0;
-	int fail_asm = createAssembledImageCSPAD( avg_sp.get(), p_pixX_sp.get(), p_pixY_sp.get(), assembled2D );
+	array2D *asm2D = 0;
+	int fail_asm = createAssembledImageCSPAD( p_sum_sp.get(), p_pixX_sp.get(), p_pixY_sp.get(), asm2D );
 		
 	//output of 2D raw image (cheetah-style)
 	array2D *raw2D = 0;
-	int fail_raw = createRawImageCSPAD( avg_sp.get(), raw2D );
+	int fail_raw = createRawImageCSPAD( p_sum_sp.get(), raw2D );
 	
 	string ext = "";
 	if (p_edfOut){
 		ext = ".edf";
-		io->writeToEDF( p_outputPrefix+"_avg_1D.edf", avg_sp.get() );
+		//io->writeToEDF( p_outputPrefix+"_avg_1D"+ext, avg_sp.get() );
 		if (!fail_raw) io->writeToEDF( p_outputPrefix+"_avg_raw2D"+ext, raw2D );
-		if (!fail_asm) io->writeToEDF( p_outputPrefix+"_avg_asm2D"+ext, assembled2D );
+		if (!fail_asm) io->writeToEDF( p_outputPrefix+"_avg_asm2D"+ext, asm2D );
 	}
 	if (p_h5Out){
 		ext = ".h5";
 		//io->writeToHDF5( p_outputPrefix+"_avg_1D"+ext, avg_sp.get() );
 		if (!fail_raw) io->writeToHDF5( p_outputPrefix+"_avg_raw2D"+ext, raw2D );
-		if (!fail_asm) io->writeToHDF5( p_outputPrefix+"_avg_asm2D"+ext, assembled2D );
+		if (!fail_asm) io->writeToHDF5( p_outputPrefix+"_avg_asm2D"+ext, asm2D );
 	}
 	if (p_tifOut){
 		ext = ".tif";
 		//io->writeToTiff( p_outputPrefix+"_avg_1D"+ext, avg_sp.get() );
 		if (!fail_raw) io->writeToTiff( p_outputPrefix+"_avg_raw2D"+ext, raw2D );
-		if (!fail_asm) io->writeToTiff( p_outputPrefix+"_avg_asm2D"+ext, assembled2D );
+		if (!fail_asm) io->writeToTiff( p_outputPrefix+"_avg_asm2D"+ext, asm2D );
 	}
 	delete raw2D;
-	delete assembled2D;
+	delete asm2D;
 }
 
 
