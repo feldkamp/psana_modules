@@ -436,7 +436,7 @@ discriminate::event(Event& evt, Env& env)
 //	}
 
 	ostringstream evtinfo;
-	evtinfo <<  "evt#" << p_count << " ";
+	evtinfo <<  "evt# " << p_count << ", ";
 
 	std::ostringstream osst;
 //	osst << "t" << eventId->time();
@@ -444,17 +444,23 @@ discriminate::event(Event& evt, Env& env)
 	shared_ptr<std::string> eventname_sp( new std::string(osst.str()) );
 	evt.put(eventname_sp, IDSTRING_CUSTOM_EVENTNAME);
 	
-	//get CSPAD data from evt object (out of XTC stream)
-	shared_ptr<Psana::CsPad::DataV2> data = evt.get(m_dataSourceString, "calibrated");
-	
 	//if no calibrated data was found in the event, use the raw data from the xtc file
 	//(probably the module cspad_mod.CsPadCalib wasn't executed before)
-	if ( data.get() ){
+	string IDSTRING_CALIBRATED = "calibrated";
+	string IDSTRING_NO_CALIB = "";
+	string specifier = IDSTRING_CALIBRATED;
+	
+	//test, if calibrated data was found for this event, otherwise, use non-calibrated version
+	if ( ((shared_ptr<Psana::CsPad::DataV2>) evt.get(m_dataSourceString, IDSTRING_CALIBRATED)) ){
 		evtinfo << "pre-calibrated data ";
+		specifier = IDSTRING_CALIBRATED;
 	}else{
+		specifier = IDSTRING_NO_CALIB;
 		evtinfo << "non-calibrated data ";
-		data = evt.get(m_dataSourceString);
 	}
+	
+	//get CSPAD data from evt object (out of XTC stream)
+	shared_ptr<Psana::CsPad::DataV2> data = evt.get(m_dataSourceString, specifier);
 	
 	//create shared_ptr to an array1D object, which can then be passed to the following modules
 	shared_ptr<array1D> raw1D_sp ( new array1D(nMaxTotalPx) );
@@ -475,7 +481,10 @@ discriminate::event(Event& evt, Env& env)
 			}
 		}//for all quads
 	}else{
-		MsgLog(name(), error, "could not get data from CSPAD " << m_dataSourceString << ". Skipping this event." );
+		MsgLog(name(), error, evtinfo.str() 
+			<< " --> could not get data from CSPAD " << m_dataSourceString << ". Skipping this event." );
+		p_skipcount++;
+		p_count++;
 		skip();
 		return;
 	}
@@ -563,8 +572,6 @@ discriminate::endJob(Event& evt, Env& env)
 
 	//create average out of raw sum
 	p_sum_sp->divideByValue( p_hitcount );
-	// add the average to the event so that other modules can access it
-	evt.put(p_sum_sp, IDSTRING_CSPAD_RUNAVGERAGE);
 
 	MsgLog(name(), info, "---------------------------------------------------");
 	MsgLog(name(), info, "processed events: " << p_count 
