@@ -59,12 +59,14 @@ makegain::makegain (const std::string& name)
 	, p_pixY_q_sp()
 	, p_pixX_int_sp()
 	, p_pixY_int_sp()
+	, p_sum_sp()
 	, p_count(0)
 {
 	p_model_fn				= configStr("model", 					"");
 	p_modelDelta			= config   ("modelDelta",				1.);
 		
 	io = new arraydataIO();
+	p_sum_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
 }
 
 //--------------
@@ -134,6 +136,11 @@ void
 makegain::event(Event& evt, Env& env)
 {
 	MsgLog(name(), debug, "event()" );
+	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
+	
+	if (data_sp){
+		p_sum_sp->addArrayElementwise( data_sp.get() );	
+	}
 }
   
   
@@ -162,7 +169,8 @@ makegain::endJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug, "endJob()" );
 
-	shared_ptr<array1D> avg_sp = evt.get(IDSTRING_CSPAD_RUNAVGERAGE);
+	//create average out of raw sum
+	p_sum_sp->divideByValue( p_count );
 	
 	//find out maximum of angular average (by using that function from cross correlator)
 	int nPhi = 256;
@@ -172,7 +180,7 @@ makegain::endJob(Event& evt, Env& env)
 	int alg = 1;
 	bool calcSAXS = true;
 	
-	CrossCorrelator *cc = new CrossCorrelator( avg_sp.get(), p_pixY_int_sp.get(), p_pixX_int_sp.get(), nPhi, nQ1 );
+	CrossCorrelator *cc = new CrossCorrelator( p_sum_sp.get(), p_pixY_int_sp.get(), p_pixX_int_sp.get(), nPhi, nQ1 );
 	cc->run(startQ, stopQ, alg, calcSAXS);
 	
 	array1D *SAXS = 0;
@@ -195,35 +203,37 @@ makegain::endJob(Event& evt, Env& env)
 	
 	//calculate the expected signal for each q-value
 	//and create a gainmap from the discrepancy
-	for (unsigned int i=0; i < avg_sp->size(); i++){
+	for (unsigned int i=0; i < p_sum_sp->size(); i++){
 		//find absolute q-value for this data point
 		double qx = p_pixX_q_sp->get(i);
 		double qy = p_pixY_q_sp->get(i);
 		double q_abs = sqrt( qx*qx + qy*qy );
 		//compare to model
 		int q_model_index = (int) floor( q_abs/p_modelDelta ); 
-		double correction = avg_sp->get(i) / p_model->get(q_model_index);
+		double correction = p_sum_sp->get(i) / p_model->get(q_model_index);
 		gain->set(i, correction);
 		
 		expected->set(i, p_model->get(q_model_index));
 		if (i > 10000 && i < 10010){
 			cout << "i=" << i << ", qx=" << qx << ", qy=" << qy << ", |q|=" << q_abs 
-				<< ", avg_sp(i)=" << avg_sp->get(i) << endl;
+				<< ", avg_sp(i)=" << p_sum_sp->get(i) << endl;
 			cout << "   model index=" << q_model_index << ", p_model->get(index)=" << p_model->get(q_model_index) 
 				<< ", correction=" << correction << endl;
 		}
 	}
 	
+	
+	//----------------------------model output
+	array2D *model_raw2D = 0;
+	createRawImageCSPAD( expected, model_raw2D );
+	io->writeToHDF5( p_outputPrefix+"_model_raw2D.h5", model_raw2D );
+
 	//assemble ASICs
 	array2D *model_asm2D = 0;
 	createAssembledImageCSPAD( expected, p_pixX_int_sp.get(), p_pixY_int_sp.get(), model_asm2D );	
-	io->writeToHDF5( p_outputPrefix+"_model_asm2D.h5", model_asm2D );
+	io->writeToHDF5( p_outputPrefix+"_model_asm2D.h5", model_asm2D );	
 	
-	//output of 1D EDF to be read later (by the correct module, for instance)
-	io->writeToEDF( p_outputPrefix+"_gain_1D.edf", gain );
-
-
-	//output of 2D raw image (cheetah-style)
+	//----------------------------gain output
 	array2D *gain_raw2D = 0;
 	createRawImageCSPAD( gain, gain_raw2D );
 	io->writeToHDF5( p_outputPrefix+"_gain_raw2D.h5", gain_raw2D );
@@ -233,6 +243,10 @@ makegain::endJob(Event& evt, Env& env)
 	createAssembledImageCSPAD( gain, p_pixX_int_sp.get(), p_pixY_int_sp.get(), gain_asm2D );
 	io->writeToHDF5( p_outputPrefix+"_gain_asm2D.h5", gain_asm2D );
 
+	delete model_raw2D;
+	delete model_asm2D;
+	delete gain_raw2D;
+	delete gain_asm2D;
 	delete cc;	
 	delete gain;
 	delete expected;

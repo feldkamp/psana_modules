@@ -101,6 +101,8 @@ private:
 	shared_ptr<array1D> p_pixX_int_sp;
 	shared_ptr<array1D> p_pixY_int_sp;
 	
+	shared_ptr<array1D> p_sum_sp;
+	
 	int p_count;
 };
 
