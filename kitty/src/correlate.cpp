@@ -28,6 +28,7 @@
 #include "PSCalib/CSPadCalibPars.h"
 
 #include "kitty/constants.h"
+#include "kitty/util.h"
 #include "kitty/crosscorrelator.h"
 
 //-----------------------------------------------------------------------
@@ -71,10 +72,10 @@ correlate::correlate (const std::string& name)
 	, p_pixY_sp()
 	, p_mask(0)
 	, p_LUT(0)
-	, p_polarAvg(0)
-	, p_corrAvg(0)
-	, p_qAvg(0)
-	, p_iAvg(0)
+	, p_polarAvg_sp()
+	, p_corrAvg_sp()
+	, p_qAvg_sp()
+	, p_iAvg_sp()
 	, p_count(0)
 {
 	p_tifOut 			= config   ("tifOut", 				0);
@@ -108,13 +109,8 @@ correlate::correlate (const std::string& name)
 correlate::~correlate ()
 {
 	delete io;
-	
 	delete p_mask;
 	delete p_LUT;
-	delete p_polarAvg;
-	delete p_corrAvg;
-	delete p_qAvg;
-	delete p_iAvg;
 }
 
 
@@ -142,7 +138,17 @@ correlate::beginJob(Event& evt, Env& env)
 
 
 	//load bad pixel mask
-	io->readFromEDF( p_mask_fn, p_mask );
+	array2D *img2D = 0;
+	int fail = io->readFromFile( p_mask_fn, img2D );
+	if (!fail){
+		create1DFromRawImageCSPAD( img2D, p_mask );
+		MsgLog(name(), info, "correlation mask loaded successfully" );
+	}else{
+		MsgLog(name(), info, "correlation mask NOT loaded" );		
+		WAIT;
+	}
+	delete img2D;
+
 }
 
 
@@ -169,6 +175,7 @@ correlate::beginRun(Event& evt, Env& env)
 	p_nLag = dummy_cc->nLag();
 	if ( p_alg == 2 || p_alg == 4 ){
 		//prepare lookup table once here, so it doesn't have to be done every time
+		MsgLog(name(), info, "creating lookup table");
 		dummy_cc->createLookupTable(p_LUTy, p_LUTx);
 		delete p_LUT;
 		p_LUT = new array2D( *(dummy_cc->lookupTable()) );
@@ -177,14 +184,10 @@ correlate::beginRun(Event& evt, Env& env)
 	delete dummy_cc;
 	
 	//resize average-keeping arrays after p_nLag was set by the dummy cross-correlator
-	delete p_polarAvg;
-	p_polarAvg = new array2D( p_nQ1, p_nPhi );
-	delete p_corrAvg;
-	p_corrAvg = new array2D( p_nQ1, p_nLag );
-	delete p_qAvg;
-	p_qAvg = new array1D( p_nQ1 );
-	delete p_iAvg;
-	p_iAvg = new array1D( p_nQ1 );
+	p_polarAvg_sp = shared_ptr<array2D>( new array2D(p_nQ1,p_nPhi) );
+	p_corrAvg_sp = shared_ptr<array2D>( new array2D(p_nQ1,p_nLag) );
+	p_qAvg_sp = shared_ptr<array1D>( new array1D(p_nQ1) );
+	p_iAvg_sp = shared_ptr<array1D>( new array1D(p_nQ1) );
 }
 
 
@@ -283,15 +286,15 @@ correlate::event(Event& evt, Env& env)
 		}//if singleout
 		
 		MsgLog(name(), info, "updating running sums.");
-		p_polarAvg->addArrayElementwise( cc->polar() );
-		p_corrAvg->addArrayElementwise( cc->autoCorr() );
-		p_qAvg->addArrayElementwise( cc->qAvg() );
-		p_iAvg->addArrayElementwise( cc->iAvg() );
+		p_polarAvg_sp->addArrayElementwise( cc->polar() );
+		p_corrAvg_sp->addArrayElementwise( cc->autoCorr() );
+		p_qAvg_sp->addArrayElementwise( cc->qAvg() );
+		p_iAvg_sp->addArrayElementwise( cc->iAvg() );
 		
 		MsgLog(name(), debug, "cc->polar dims: rows,cols=(" << cc->polar()->dim1() << ", " << cc->polar()->dim2() << ")"  );
-		MsgLog(name(), debug, "p_polarAvg dims: rows,cols=(" << p_polarAvg->dim1() << ", " << p_polarAvg->dim2() << ")"  );
+		MsgLog(name(), debug, "p_polarAvg dims: rows,cols=(" << p_polarAvg_sp->dim1() << ", " << p_polarAvg_sp->dim2() << ")"  );
 		MsgLog(name(), debug, "cc->autoCorr dims: rows,cols=(" << cc->autoCorr()->dim1() << ", " << cc->autoCorr()->dim2() << ")"  );
-		MsgLog(name(), debug, "p_corrAvg dims: rows,cols=(" << p_corrAvg->dim1() << ", " << p_corrAvg->dim2() << ")"  );
+		MsgLog(name(), debug, "p_corrAvg dims: rows,cols=(" << p_corrAvg_sp->dim1() << ", " << p_corrAvg_sp->dim2() << ")"  );
 		delete cc;
 		
 		p_count++;
@@ -326,56 +329,54 @@ void
 correlate::endJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correlate::endJob()" );
-	p_polarAvg->divideByValue( p_count );
-	p_corrAvg->divideByValue( p_count );
-	p_qAvg->divideByValue( p_count );
-	p_iAvg->divideByValue( p_count );
+	p_polarAvg_sp->divideByValue( p_count );
+	p_corrAvg_sp->divideByValue( p_count );
+	p_qAvg_sp->divideByValue( p_count );
+	p_iAvg_sp->divideByValue( p_count );
 	
 	//convert SAXS output to 2D, so they can be written to disk as images (with y-dim == 1)
-	array2D* qAvg2D = new array2D( p_qAvg, p_qAvg->dim1(), 1 );
-	array2D* iAvg2D = new array2D( p_iAvg, p_iAvg->dim1(), 1 );
+	shared_ptr<array2D> qAvg2D_sp = shared_ptr<array2D>( new array2D( p_qAvg_sp.get(), p_qAvg_sp->dim1(), 1 ) );
+	shared_ptr<array2D> iAvg2D_sp = shared_ptr<array2D>( new array2D( p_iAvg_sp.get(), p_iAvg_sp->dim1(), 1 ) );
 	
 	//HDF5 output
 	if (p_h5Out){
 		string ext = ".h5";
 		if (p_autoCorrelateOnly){
-			io->writeToHDF5( p_outputPrefix+"_avg_polar"+ext, p_polarAvg);
-			io->writeToHDF5( p_outputPrefix+"_avg_xaca"+ext, p_corrAvg );
+			io->writeToHDF5( p_outputPrefix+"_avg_polar"+ext, p_polarAvg_sp.get());
+			io->writeToHDF5( p_outputPrefix+"_avg_xaca"+ext, p_corrAvg_sp.get() );
 		}else{
 			MsgLog(name(), warning, "WARNING. No HDF5 output for 3D cross-correlation case implemented, yet!" );
 		}
-		io->writeToHDF5( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D );
-		io->writeToHDF5( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D );
+		io->writeToHDF5( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D_sp.get() );
+		io->writeToHDF5( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D_sp.get() );
 	}
 	//EDF output
 	if (p_edfOut){
 		string ext = ".edf";
 		if (p_autoCorrelateOnly){
-			io->writeToEDF( p_outputPrefix+"_avg_polar"+ext, p_polarAvg );
-			io->writeToEDF( p_outputPrefix+"_avg_xaca"+ext, p_corrAvg );
+			io->writeToEDF( p_outputPrefix+"_avg_polar"+ext, p_polarAvg_sp.get() );
+			io->writeToEDF( p_outputPrefix+"_avg_xaca"+ext, p_corrAvg_sp.get() );
 		}else{
 			MsgLog(name(), warning, "WARNING. No EDF output for 3D cross-correlation case implemented, yet!" );
 		}
-		io->writeToEDF( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D );
-		io->writeToEDF( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D );
+		io->writeToEDF( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D_sp.get() );
+		io->writeToEDF( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D_sp.get() );
 	}
 	//TIFF image output
 	if (p_tifOut){
 		string ext = ".tif";
 		if (p_autoCorrelateOnly){
-			io->writeToTiff( p_outputPrefix+"_avg_polar"+ext, p_polarAvg, 1 );			// 0: unscaled, 1: scaled
-			io->writeToTiff( p_outputPrefix+"_avg_xaca"+ext, p_corrAvg, 1 );			// 0: unscaled, 1: scaled
+			io->writeToTiff( p_outputPrefix+"_avg_polar"+ext, p_polarAvg_sp.get(), 1 );			// 0: unscaled, 1: scaled
+			io->writeToTiff( p_outputPrefix+"_avg_xaca"+ext, p_corrAvg_sp.get(), 1 );			// 0: unscaled, 1: scaled
 		}else{
 			MsgLog(name(), warning, "WARNING. No tiff output for 3D cross-correlation case implemented, yet!" );
 			//one possibility would be to write a stack of tiffs, one for each of the outer q values
 		}
 		
-		io->writeToTiff( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D, 1 );
-		io->writeToTiff( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D, 1 );
+		io->writeToTiff( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D_sp.get(), 1 );
+		io->writeToTiff( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D_sp.get(), 1 );
 	}
 	
-	delete qAvg2D;
-	delete iAvg2D;
 }
 
 } // namespace kitty

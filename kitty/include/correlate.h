@@ -120,11 +120,11 @@ private:
 
 	array2D *p_LUT;
 
-	array2D *p_polarAvg;
-	array2D *p_corrAvg;
+	shared_ptr<array2D> p_polarAvg_sp;
+	shared_ptr<array2D> p_corrAvg_sp;
 	
-	array1D *p_qAvg;
-	array1D *p_iAvg;
+	shared_ptr<array1D> p_qAvg_sp;
+	shared_ptr<array1D> p_iAvg_sp;
 	
 	int p_count;
 
