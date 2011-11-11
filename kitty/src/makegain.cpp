@@ -140,6 +140,9 @@ makegain::event(Event& evt, Env& env)
 	
 	if (data_sp){
 		p_sum_sp->addArrayElementwise( data_sp.get() );	
+		p_count++;
+	}else{
+		MsgLog(name(), warning, "could not get CSPAD data" );
 	}
 }
   
@@ -173,7 +176,7 @@ makegain::endJob(Event& evt, Env& env)
 	p_sum_sp->divideByValue( p_count );
 	
 	//find out maximum of angular average (by using that function from cross correlator)
-	int nPhi = 256;
+	int nPhi = 1024;
 	int nQ1 = 500;
 	int startQ = 0;
 	int stopQ = 1000;
@@ -193,10 +196,14 @@ makegain::endJob(Event& evt, Env& env)
 	//scale model to the intensity found in the scattering data
 	double modelmax = p_model->calcMax();
 	double scaling = datamax/modelmax;
-	p_model->multiplyByValue(scaling);
-	MsgLog(name(), info,  "model scaled to: " << scaling << " = " << datamax << "/" << modelmax);
+	MsgLog(name(), info,  "calculated model scaling factor: " << scaling << " = " << datamax << "/" << modelmax);
+	if (scaling != INFINITY && scaling != -INFINITY && scaling != 0){
+		p_model->multiplyByValue(scaling);
+	}else{
+		MsgLog(name(), error, "invalid scaling model scaling value. Setting scaling to 1." );
+		//don't scale model in this case
+	}
 	io->writeToHDF5( p_outputPrefix+"_model_1D.h5", p_model );
-	
 	
 	array1D *gain = new array1D(nMaxTotalPx);
 	array1D *expected = new array1D(nMaxTotalPx);
@@ -215,7 +222,7 @@ makegain::endJob(Event& evt, Env& env)
 		
 		expected->set(i, p_model->get(q_model_index));
 		if (i > 10000 && i < 10010){
-			cout << "i=" << i << ", qx=" << qx << ", qy=" << qy << ", |q|=" << q_abs 
+			cout << "example: i=" << i << ", qx=" << qx << ", qy=" << qy << ", |q|=" << q_abs 
 				<< ", avg_sp(i)=" << p_sum_sp->get(i) << endl;
 			cout << "   model index=" << q_model_index << ", p_model->get(index)=" << p_model->get(q_model_index) 
 				<< ", correction=" << correction << endl;

@@ -106,16 +106,16 @@ correct::beginJob(Event& evt, Env& env)
 			
 			array2D *img2D = 0;
 			int fail = io->readFromFile( p_back_fn, img2D );
-			create1DFromRawImageCSPAD( img2D, p_back );
-			delete img2D;
-						
+ 		
 			if (!fail){
+				create1DFromRawImageCSPAD( img2D, p_back );
 				MsgLog(name(), info, "histogram of background read\n" << p_back->getHistogramASCII(20) );
 			}else{
 				MsgLog(name(), warning, "Could not read background, continuing without background subtraction!");
 				WAIT;
 				p_useBack = 0;	
 			}
+			delete img2D;
 		}else{
 			MsgLog(name(), warning, "No background file specified in config file, continuing without background subtraction!");
 			p_useBack = 0;			
@@ -130,16 +130,16 @@ correct::beginJob(Event& evt, Env& env)
 
 			array2D *img2D = 0;
 			int fail = io->readFromFile( p_gain_fn, img2D );
-			create1DFromRawImageCSPAD( img2D, p_gain );
-			delete img2D;			
 
 			if (!fail){
+				create1DFromRawImageCSPAD( img2D, p_gain );
 				MsgLog(name(), info, "histogram of gain map read\n" << p_gain->getHistogramASCII(20) );	
 			}else{
 				MsgLog(name(), warning, "Could not read gainmap, continuing without gain correction!");
 				WAIT;
 				p_useGain = 0;
 			}
+			delete img2D;
 		}else{
 			MsgLog(name(), warning, "No gain file specified in config file, continuing without gain correction!");
 			p_useGain = 0;			
@@ -154,16 +154,16 @@ correct::beginJob(Event& evt, Env& env)
 
 			array2D *img2D = 0;
 			int	fail = io->readFromFile( p_mask_fn, img2D );
-			create1DFromRawImageCSPAD( img2D, p_mask );
-			delete img2D;
-			
+
 			if (!fail){
+				create1DFromRawImageCSPAD( img2D, p_mask );
 				MsgLog(name(), info, "histogram of mask read\n" << p_mask->getHistogramASCII(2) );	
 			}else{
 				MsgLog(name(), warning, "Could not read mask, continuing without mask correction!");
 				WAIT;
 				p_useMask = 0;
 			}
+			delete img2D;
 		}else{
 			MsgLog(name(), warning, "No mask file specified in config file, continuing without mask correction!");
 			p_useMask = 0;			

@@ -156,6 +156,7 @@ makemask::event(Event& evt, Env& env)
 	
 	if (data_sp){
 		p_sum_sp->addArrayElementwise( data_sp.get() );	
+		p_count++;
 	}
 }
   
