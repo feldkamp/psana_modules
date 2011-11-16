@@ -180,11 +180,9 @@ makegain::endJob(Event& evt, Env& env)
 	int nQ1 = 500;
 	int startQ = 0;
 	int stopQ = 1000;
-	int alg = 1;
-	bool calcSAXS = true;
 	
-	CrossCorrelator *cc = new CrossCorrelator( p_sum_sp.get(), p_pixY_int_sp.get(), p_pixX_int_sp.get(), nPhi, nQ1 );
-	cc->run(startQ, stopQ, alg, calcSAXS);
+	CrossCorrelator *cc = new CrossCorrelator( p_sum_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), nPhi, nQ1 );
+	cc->calculatePolarCoordinates_FAST(startQ, stopQ);
 	
 	array1D *SAXS = 0;
 	cc->polar()->calcAvgCol( SAXS );
