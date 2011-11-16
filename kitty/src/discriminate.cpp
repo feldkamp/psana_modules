@@ -35,6 +35,7 @@ using std::string;
 
 #include "kitty/constants.h"
 
+#include "kitty/util.h"
 
 
 //-----------------------------------------------------------------------
@@ -61,6 +62,7 @@ discriminate::discriminate (const std::string& name)
 	, p_upperThreshold(0)
 	, p_discriminateAlogrithm(0)
 	, p_outputPrefix("")
+	, p_pixelVectorOutput(0)
 	, p_maxHits(0)
 	, p_skipcount(0)
 	, p_hitcount(0)
@@ -97,6 +99,7 @@ discriminate::discriminate (const std::string& name)
 	p_maxHits					= config("maxHits",					10000000);
 	
 	p_outputPrefix				= configStr("outputPrefix", 		"out");
+	p_pixelVectorOutput			= config("pixelVectorOutput", 		0);
 	
 	p_useCorrectedData			= config("useCorrectedData",        1);
 	p_useShift					= config("useShift",				1);
@@ -263,11 +266,11 @@ discriminate::beginRun(Event& evt, Env& env)
 	
 	//look up calibration data (CSPAD geometry) for this run
 	try{
-		MsgLog(name(), info, "reading calibration from "
-								<< "\n   calib dir  = '" << m_calibDir << "'"
-								<< "\n   type group = '" << m_typeGroupName << "'"
-								<< "\n   source     = '" << m_calibSourceString << "'"
-								<< "\n   run number = '" << m_runNumber << "'"
+		MsgLog(name(), info, "reading calibration using "
+								<< "\n\t\t\t calib dir  = '" << m_calibDir << "'"
+								<< "\n\t\t\t type group = '" << m_typeGroupName << "'"
+								<< "\n\t\t\t source     = '" << m_calibSourceString << "'"
+								<< "\n\t\t\t run number = '" << m_runNumber << "'"
 								);
 		m_cspad_calibpar   = new PSCalib::CSPadCalibPars(m_calibDir, m_typeGroupName, m_calibSourceString, m_runNumber);
 		m_pix_coords_2x1   = new CSPadPixCoords::PixCoords2x1();
@@ -382,6 +385,45 @@ discriminate::beginRun(Event& evt, Env& env)
 	evt.put( pixY_q_sp,   IDSTRING_PX_Y_q);
 	evt.put( pixTwoTheta_sp,   IDSTRING_PX_TWOTHETA);
 	evt.put( pixPhi_sp,   IDSTRING_PX_PHI);	
+	
+	if (p_pixelVectorOutput){
+		arraydataIO *io = new arraydataIO();
+		string ext = ".h5";
+		array2D *two = 0;
+
+		createRawImageCSPAD( pixX_um_sp.get(), two );		
+		io->writeToFile( p_outputPrefix+"_pixX_um"+ext, two );
+		
+		createRawImageCSPAD( pixY_um_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_um"+ext, two );
+		
+		createRawImageCSPAD( pixX_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixX_int"+ext, two );
+		
+		createRawImageCSPAD( pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_int"+ext, two );
+		
+		createRawImageCSPAD( pixX_pix_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixX_pix"+ext, two );
+		
+		createRawImageCSPAD( pixY_pix_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_pix"+ext, two );
+		
+		createRawImageCSPAD( pixX_q_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixX_q"+ext, two );
+		
+		createRawImageCSPAD( pixY_q_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_q"+ext, two );
+		
+		createRawImageCSPAD( pixTwoTheta_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixTwoTheta"+ext, two );
+		
+		createRawImageCSPAD( pixPhi_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixPhi"+ext, two );
+		
+		delete two;
+		delete io;
+	}
 }
 
 

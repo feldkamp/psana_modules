@@ -26,6 +26,7 @@
 
 //headers must be available through symbolic links or copies in the kitty include directory
 #include <kitty/arrayclasses.h>
+#include <kitty/arraydataIO.h>
 
 //------------------------------------
 // Collaborating Class Declarations --
@@ -104,6 +105,7 @@ private:
 	int p_discriminateAlogrithm;
 	
 	std::string	p_outputPrefix;
+	int p_pixelVectorOutput;
 	
 	int p_maxHits;
 	int p_skipcount;
