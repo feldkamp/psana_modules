@@ -24,7 +24,7 @@ using std::string;
 // make a 1D array from a written 2D "raw" image
 //
 //-------------------------------------------------------------
-int create1DFromRawImageCSPAD( array2D *input, array1D *&output ){
+int create1DFromRawImageCSPAD( const array2D *input, array1D *&output ){
 	if (!input){
 		cerr << "Error in create1DFromRawImageCSPAD. No input. Aborting..." << endl;
 		return 1;
@@ -34,7 +34,10 @@ int create1DFromRawImageCSPAD( array2D *input, array1D *&output ){
 	output = new array1D( nMaxTotalPx );
 
 	//transpose to be conform with psana's convention
-	input->transpose();
+	//make a copy to not screw up the original array
+	//obviously not the smart way to do it... needs a fix at a certain point...... should be simple by rearranging logic in 4-for-loop
+	array2D *copy = new array2D( *input );
+	copy->transpose();
 
 	//sort into 1D data
 	for (int q = 0; q < nMaxQuads; q++){
@@ -44,15 +47,11 @@ int create1DFromRawImageCSPAD( array2D *input, array1D *&output ){
 			for (int c = 0; c < nColsPer2x1; c++){
 				for (int r = 0; r < nRowsPer2x1; r++){
 					output->set( q*nMaxPxPerQuad + s*nPxPer2x1 + c*nRowsPer2x1 + r,
-						input->get( superrow+r, supercol+c ) );
+						copy->get( superrow+r, supercol+c ) );
 				}
 			}
 		}
 	}
-	
-	//transpose again to not screw up the original array....
-	//the two transposes are obviously not the smart way to do it... needs a fix at a certain point
-	input->transpose();
 	return 0;
 }
 
@@ -79,7 +78,7 @@ int create1DFromRawImageCSPAD( array2D *input, array1D *&output ){
 //    +--+--+--+--+--+--+--+--+
 //     s0 s1 s2 s3 s4 s5 s6 s7
 //-------------------------------------------------------------
-int createRawImageCSPAD( array1D *input, array2D *&output ){
+int createRawImageCSPAD( const array1D *input, array2D *&output ){
 	if (!input){
 		cerr << "Error in createRawImageCSPAD. No input. Aborting..." << endl;
 		return 1;
@@ -112,7 +111,7 @@ int createRawImageCSPAD( array1D *input, array2D *&output ){
 //------------------------------------------------------------- createAssembledImageCSPAD
 // expects 'pixX/Y' arrays to contain pixel count coordinates for each value in 'input'
 //-------------------------------------------------------------
-int createAssembledImageCSPAD( array1D *input, array1D *pixX, array1D *pixY, array2D *&output ){
+int createAssembledImageCSPAD( const array1D *input, const array1D *pixX, const array1D *pixY, array2D *&output ){
 	if (!input){
 		cerr << "Error in createAssembledImageCSPAD. No input. Aborting..." << endl;
 		return 1;
@@ -137,10 +136,6 @@ int createAssembledImageCSPAD( array1D *input, array1D *pixX, array1D *pixY, arr
 		//cout << "Assembling CSPAD image. Output (" << NX_CSPAD << ", " << NY_CSPAD << ")" << endl;
 	}
 	
-	//shift output arrays, if necessary, so that they start at zero
-	pixX->subtractValue( xmin );
-	pixY->subtractValue( ymin );
-	
 	delete output;
 	output = new array2D( NY_CSPAD, NX_CSPAD );
 
@@ -150,7 +145,9 @@ int createAssembledImageCSPAD( array1D *input, array1D *pixX, array1D *pixY, arr
 			for (int c = 0; c < nColsPer2x1; c++){
 				for (int r = 0; r < nRowsPer2x1; r++){
 					int index = q*nMaxPxPerQuad + s*nPxPer2x1 + c*nRowsPer2x1 + r;
-					output->set( (int)pixY->get(index), (int)pixX->get(index), input->get(index) );
+
+					//shift output arrays, if necessary, so that they start at zero
+					output->set( (int)(pixY->get(index)-ymin), (int)(pixX->get(index)-xmin), input->get(index) );
 				}
 			}
 		}
