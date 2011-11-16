@@ -68,8 +68,8 @@ correlate::correlate (const std::string& name)
 	, p_LUTx(0)
 	, p_LUTy(0)
 	, io(0)
-	, p_pixX_sp()
-	, p_pixY_sp()
+	, p_pix1_sp()
+	, p_pix2_sp()
 	, p_mask(0)
 	, p_LUT(0)
 	, p_polarAvg_sp()
@@ -161,17 +161,17 @@ correlate::beginRun(Event& evt, Env& env)
 	
 	p_outputPrefix = *( (shared_ptr<std::string>) evt.get(IDSTRING_OUTPUT_PREFIX) ).get();
 
-	p_pixX_sp = evt.get(IDSTRING_PX_X_int); 
-	p_pixY_sp = evt.get(IDSTRING_PX_Y_int); 
+	p_pix1_sp = evt.get(IDSTRING_PX_X_int); 
+	p_pix2_sp = evt.get(IDSTRING_PX_Y_int); 
 	
-	if (p_pixX_sp && p_pixY_sp){
-		MsgLog(name(), info, "read data for pixX(n=" << p_pixX_sp->size() << "), pixY(n=" << p_pixY_sp->size() << ")" );
+	if (p_pix1_sp && p_pix2_sp){
+		MsgLog(name(), info, "read data for pix1(n=" << p_pix1_sp->size() << "), pix2(n=" << p_pix2_sp->size() << ")" );
 	}else{
-		MsgLog(name(), warning, "could not get data from pixX(addr=" << p_pixX_sp.get() << ") or pixY(addr=" << p_pixY_sp.get() << ")" );
+		MsgLog(name(), warning, "could not get data from pixX(addr=" << p_pix1_sp.get() << ") or pixY(addr=" << p_pix2_sp.get() << ")" );
 	}
 
 	//before everything starts, create a dummy CrossCorrelator to set up some things
-	CrossCorrelator *dummy_cc = new CrossCorrelator(p_pixY_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1);
+	CrossCorrelator *dummy_cc = new CrossCorrelator(p_pix1_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1);
 	p_nLag = dummy_cc->nLag();
 	if ( p_alg == 2 || p_alg == 4 ){
 		//prepare lookup table once here, so it doesn't have to be done every time
@@ -215,26 +215,20 @@ correlate::event(Event& evt, Env& env)
 		MsgLog(name(), debug, "read event data of size " << data_sp->size() << " from ID string " << IDSTRING_CSPAD_DATA);
 		
 		//create cross correlator object that takes care of the computations
-		//the arguments that are passed to the constructor determine 2D/3D calculations with/without mask
+		//the arguments that are passed to the constructor determine if calculations are 2D/3D and with/without mask
 		CrossCorrelator *cc = 0;
 		
-		//-----------------------------ATTENTION----------------------------------		
-		// THE X & Y ARRAYS GENERATED FROM THE CALIBRATION DATA
-		// SEEM TO HAVE SWAPPED MEANING THAN IN CrossCorrelator
-		// SWITCHING THEM AROUND IN THE CONSTRUCTOR SEEM TO MAKE THINGS RIGHT
-		//------------------------------------------------------------------------
-				
 		if (p_autoCorrelateOnly) {
 			if (p_useMask) {											//auto-correlation 2D case, with mask
-				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
-			} else { 															//auto-correlation 2D case, no mask
-				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1 );
+				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
+			} else { 													//auto-correlation 2D case, no mask
+				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1 );
 			}
 		} else {
 			if (p_useMask){												//full cross-correlation 3D case, with mask
-				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
-			} else { 															//full cross-correlation 3D case, no mask
-				cc = new CrossCorrelator( data_sp.get(), p_pixY_sp.get(), p_pixX_sp.get(), p_nQ1, p_nQ1, p_nQ2);
+				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
+			} else { 													//full cross-correlation 3D case, no mask
+				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1, p_nQ2);
 			}
 		}
 		
@@ -252,11 +246,21 @@ correlate::event(Event& evt, Env& env)
 		
 		MsgLog(name(), info, "calling alg " << p_alg << ", startQ=" << p_startQ << ", stopQ=" << p_stopQ );
 		cc->run(p_startQ, p_stopQ, p_alg, true);
-
-		MsgLog(name(), info, "correlation calculation done. writing (single event) files.");
+		
+		MsgLog(name(), debug, "updating running sums.");
+		p_polarAvg_sp->addArrayElementwise( cc->polar() );
+		p_corrAvg_sp->addArrayElementwise( cc->autoCorr() );
+		p_qAvg_sp->addArrayElementwise( cc->qAvg() );
+		p_iAvg_sp->addArrayElementwise( cc->iAvg() );
+		
+		MsgLog(name(), debug, "cc->polar dims: rows,cols=(" << cc->polar()->dim1() << ", " << cc->polar()->dim2() << ")"  );
+		MsgLog(name(), debug, "p_polarAvg dims: rows,cols=(" << p_polarAvg_sp->dim1() << ", " << p_polarAvg_sp->dim2() << ")"  );
+		MsgLog(name(), debug, "cc->autoCorr dims: rows,cols=(" << cc->autoCorr()->dim1() << ", " << cc->autoCorr()->dim2() << ")"  );
+		MsgLog(name(), debug, "p_corrAvg dims: rows,cols=(" << p_corrAvg_sp->dim1() << ", " << p_corrAvg_sp->dim2() << ")"  );
+		
 		if ( p_singleOutput ){
 			if ( !(p_count % p_singleOutput) ){
-				
+				MsgLog(name(), debug, "writing (single event) files.");
 				if (p_h5Out){
 					string ext = ".h5";
 					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_xaca"+ext, cc->autoCorr() );
@@ -285,16 +289,6 @@ correlate::event(Event& evt, Env& env)
 			}//if no modulo
 		}//if singleout
 		
-		MsgLog(name(), info, "updating running sums.");
-		p_polarAvg_sp->addArrayElementwise( cc->polar() );
-		p_corrAvg_sp->addArrayElementwise( cc->autoCorr() );
-		p_qAvg_sp->addArrayElementwise( cc->qAvg() );
-		p_iAvg_sp->addArrayElementwise( cc->iAvg() );
-		
-		MsgLog(name(), debug, "cc->polar dims: rows,cols=(" << cc->polar()->dim1() << ", " << cc->polar()->dim2() << ")"  );
-		MsgLog(name(), debug, "p_polarAvg dims: rows,cols=(" << p_polarAvg_sp->dim1() << ", " << p_polarAvg_sp->dim2() << ")"  );
-		MsgLog(name(), debug, "cc->autoCorr dims: rows,cols=(" << cc->autoCorr()->dim1() << ", " << cc->autoCorr()->dim2() << ")"  );
-		MsgLog(name(), debug, "p_corrAvg dims: rows,cols=(" << p_corrAvg_sp->dim1() << ", " << p_corrAvg_sp->dim2() << ")"  );
 		delete cc;
 		
 		p_count++;

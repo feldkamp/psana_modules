@@ -113,8 +113,8 @@ private:
 	
 	arraydataIO *io;
 	
-	shared_ptr<array1D> p_pixX_sp;
-	shared_ptr<array1D> p_pixY_sp;
+	shared_ptr<array1D> p_pix1_sp;		//input vectors for crosscorrelator
+	shared_ptr<array1D> p_pix2_sp;
 	
 	array1D *p_mask;
 
