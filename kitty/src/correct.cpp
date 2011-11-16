@@ -108,8 +108,9 @@ correct::beginJob(Event& evt, Env& env)
 			int fail = io->readFromFile( p_back_fn, img2D );
  		
 			if (!fail){
+				MsgLog(name(), info, "background read");
 				create1DFromRawImageCSPAD( img2D, p_back );
-				MsgLog(name(), info, "histogram of background read\n" << p_back->getHistogramASCII(20) );
+				MsgLog(name(), info, "histogram\n" << p_back->getHistogramASCII(20) );
 			}else{
 				MsgLog(name(), warning, "Could not read background, continuing without background subtraction!");
 				WAIT;
@@ -132,8 +133,9 @@ correct::beginJob(Event& evt, Env& env)
 			int fail = io->readFromFile( p_gain_fn, img2D );
 
 			if (!fail){
+				MsgLog(name(), info, "gain map read");
 				create1DFromRawImageCSPAD( img2D, p_gain );
-				MsgLog(name(), info, "histogram of gain map read\n" << p_gain->getHistogramASCII(20) );	
+				MsgLog(name(), info, "histogram\n" << p_gain->getHistogramASCII(20) );	
 			}else{
 				MsgLog(name(), warning, "Could not read gainmap, continuing without gain correction!");
 				WAIT;
@@ -156,8 +158,9 @@ correct::beginJob(Event& evt, Env& env)
 			int	fail = io->readFromFile( p_mask_fn, img2D );
 
 			if (!fail){
+				MsgLog(name(), info, "mask file read");
 				create1DFromRawImageCSPAD( img2D, p_mask );
-				MsgLog(name(), info, "histogram of mask read\n" << p_mask->getHistogramASCII(2) );	
+				MsgLog(name(), info, "histogram\n" << p_mask->getHistogramASCII(2) );	
 			}else{
 				MsgLog(name(), warning, "Could not read mask, continuing without mask correction!");
 				WAIT;
