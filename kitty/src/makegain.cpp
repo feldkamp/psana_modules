@@ -194,11 +194,11 @@ makegain::endJob(Event& evt, Env& env)
 	//scale model to the intensity found in the scattering data
 	double modelmax = p_model->calcMax();
 	double scaling = datamax/modelmax;
-	MsgLog(name(), info,  "calculated model scaling factor: " << scaling << " = " << datamax << "/" << modelmax);
+	MsgLog(name(), info,  "Calculated model scaling factor: " << scaling << " = " << datamax << "/" << modelmax);
 	if (scaling != INFINITY && scaling != -INFINITY && scaling != 0){
 		p_model->multiplyByValue(scaling);
 	}else{
-		MsgLog(name(), error, "invalid scaling model scaling value. Setting scaling to 1." );
+		MsgLog(name(), error, "Invalid scaling model scaling value. Setting scaling to 1." );
 		//don't scale model in this case
 	}
 	io->writeToHDF5( p_outputPrefix+"_model_1D.h5", p_model );
