@@ -29,6 +29,8 @@
 
 #include "kitty/constants.h"
 #include "kitty/util.h"
+using ns_cspad_util::create1DFromRawImageCSPAD;
+
 #include "kitty/crosscorrelator.h"
 
 //-----------------------------------------------------------------------

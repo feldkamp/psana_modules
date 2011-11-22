@@ -45,5 +45,6 @@ namespace kitty {
 	
 }//namespace
 
+#define WAIT std::cerr << "continue by pressing the <return> key..."; std::cin.get();
 
 #endif

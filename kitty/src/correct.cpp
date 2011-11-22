@@ -29,6 +29,7 @@ using std::string;
 
 #include "kitty/constants.h"
 #include "kitty/util.h"
+using ns_cspad_util::create1DFromRawImageCSPAD;
 
 //-----------------------------------------------------------------------
 // Local Macros, Typedefs, Structures, Unions and Forward Declarations --
