@@ -55,6 +55,7 @@ on LCLS machine (where fresh repository was created):
     ln -s /reg/neh/home/feldkamp/giraffe/arraydataIO.h arraydataIO.h
     ln -s /reg/neh/home/feldkamp/giraffe/fouriertransformer.h fouriertransformer.h
     ln -s /reg/neh/home/feldkamp/giraffe/crosscorrelator.h crosscorrelator.h
+    ln -s /reg/neh/home/feldkamp/giraffe/util.h util.h
     cd ../../
     scons
     psana /reg/d/ana02/cxi/cxi35711/xtc/e86-r0020-s01-c00.xtc
