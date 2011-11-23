@@ -41,7 +41,9 @@ modules = PrintSeparator PrintEventId kitty.correlate kitty.correct kitty.discri
 [kitty.correct]
 [kitty.discriminate]
 [kitty.assemble]
-
+[kitty.info]
+[kitty.makegain]
+[kitty.makemask]
 
 ---execute the following commands to update the freshly created psana release directory to the current version of kitty:
 
