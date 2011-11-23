@@ -185,7 +185,7 @@ makegain::endJob(Event& evt, Env& env)
 	int stopQ = 1000;
 	
 	CrossCorrelator *cc = new CrossCorrelator( p_sum_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), nPhi, nQ1 );
-	cc->calculatePolarCoordinates_FAST(startQ, stopQ);
+	cc->calculatePolarCoordinates(startQ, stopQ);
 	
 	array1D *SAXS = 0;
 	cc->polar()->calcAvgCol( SAXS );
@@ -197,11 +197,11 @@ makegain::endJob(Event& evt, Env& env)
 	//scale model to the intensity found in the scattering data
 	double modelmax = p_model->calcMax();
 	double scaling = datamax/modelmax;
-	MsgLog(name(), info,  "Calculated model scaling factor: " << scaling << " = " << datamax << "/" << modelmax);
+	MsgLog(name(), info,  "Calculated model scaling factor: " << scaling << " = datamax(" << datamax << ") / modelmax(" << modelmax << ")");
 	if (scaling != INFINITY && scaling != -INFINITY && scaling != 0){
 		p_model->multiplyByValue(scaling);
 	}else{
-		MsgLog(name(), error, "Invalid scaling model scaling value. Setting scaling to 1." );
+		MsgLog(name(), error, "Invalid model scaling value " << scaling << ". Setting scaling to 1." );
 		//don't scale model in this case
 	}
 	io->writeToHDF5( p_outputPrefix+"_model_1D.h5", p_model );

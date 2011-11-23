@@ -131,7 +131,7 @@ discriminate::~discriminate ()
 void 
 discriminate::beginJob(Event& evt, Env& env)
 {
-	MsgLog(name(), debug, "discriminate::beginJob()" );
+	MsgLog(name(), debug, "beginJob()" );
 	MsgLog(name(), info, "maxHits = " << p_maxHits );
 	MsgLog(name(), info, "lowerThreshold = " << p_lowerThreshold );
 	MsgLog(name(), info, "upperThreshold = " << p_upperThreshold );
@@ -161,7 +161,7 @@ discriminate::beginJob(Event& evt, Env& env)
 void 
 discriminate::beginRun(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "discriminate::beginRun()" );
+	MsgLog(name(), debug,  "beginRun()" );
 	
 	//put output string into event to make it accessible for all modules
 	shared_ptr<std::string> outputPrefix_sp( new std::string(p_outputPrefix) );
@@ -435,7 +435,7 @@ discriminate::beginRun(Event& evt, Env& env)
 void 
 discriminate::beginCalibCycle(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "discriminate::beginCalibCycle()" );
+	MsgLog(name(), debug,  "beginCalibCycle()" );
 }
 
 
@@ -595,7 +595,7 @@ discriminate::event(Event& evt, Env& env)
 void 
 discriminate::endCalibCycle(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "discriminate::endCalibCycle()" );
+	MsgLog(name(), debug,  "endCalibCycle()" );
 }
 
 
@@ -604,7 +604,7 @@ discriminate::endCalibCycle(Event& evt, Env& env)
 void 
 discriminate::endRun(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "discriminate::endRun()" );
+	MsgLog(name(), debug,  "endRun()" );
 }
 
 
@@ -613,7 +613,7 @@ discriminate::endRun(Event& evt, Env& env)
 void 
 discriminate::endJob(Event& evt, Env& env)
 {
-	MsgLog(name(), debug,  "discriminate::endJob()" );
+	MsgLog(name(), debug,  "endJob()" );
 
 	//create average out of raw sum
 	p_sum_sp->divideByValue( p_hitcount );
