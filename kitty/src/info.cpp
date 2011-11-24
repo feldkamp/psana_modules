@@ -160,7 +160,7 @@ info::beginRun(Event& evt, Env& env)
     if (eventId.get()) {
 		runNumber = eventId->run();
 		MsgLog(name(), trace, name() << ": Using run number " << runNumber);
-		runinfo << runNumber <<m " ";
+		runinfo << runNumber << " ";
     } else {
 		MsgLog(name(), warning, name() << ": Cannot get eventId.");
     }	
