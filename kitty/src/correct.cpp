@@ -193,10 +193,19 @@ correct::beginRun(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correct::beginRun()" );
 	
-	//create polarization correction array
+	// create polarization correction array
 	if (p_usePol) {
 		delete p_pol;
 		p_pol = new array1D(nMaxTotalPx);
+		
+		// make sure the degree of horizontal polarization is between 0 and 1 (inclusive)
+		if (p_horzPol > 1) {
+			p_horzPol = 1;
+			MsgLog(name(), warning, "the degree of horizontal polarization was above 100%, lowered to maximum value (1)");
+		} else if (p_horzPol < 0) {
+			p_horzPol = 0;
+			MsgLog(name(), warning, "the degree of horizontal polarization was above 0%, raised to minimum value (0)");
+		}
 		
 		shared_ptr<array1D>	pixPhi_sp = evt.get(IDSTRING_PX_PHI);
 		shared_ptr<array1D> pixTwoTheta_sp = evt.get(IDSTRING_PX_TWOTHETA);
