@@ -7,6 +7,7 @@
 //
 // Author List:
 //      Jan Moritz Feldkamp
+//		Jonas Alexander Sellberg
 //
 //------------------------------------------------------------------------
 
@@ -359,16 +360,16 @@ discriminate::beginRun(Event& evt, Env& env)
 		double twoTheta = atan( r_um/1000.0/detZ );
 		double phi;
 		// setup UHP
-		if (x_um == 0) { // make sure that if x = 0 the angle 0 (r = 0 is assumed to have phi = 0)
+		if (x_um == 0) { // make sure that if x = 0 the angle is 0 (r = 0 is assumed to have phi = 0)
 			phi = 0;
 		} else {
-			phi = atan( y_um/x_um ); // atan gives the correct result if x != 0, but only for the UHP! Need to add PI for all LHP!
+			phi = atan( y_um/x_um ); // atan gives the correct result if x != 0, but only for the UHP! Need to add PI to all pixels in LHP!
 		}
 		// correct LHP by adding PI
 		if ( y_um < 0) {
 			phi += M_PI;
 		}
-		if (phi < 0) { // make sure the binned angle is between 0 and 2PI
+		if (phi < 0) { // make sure the angle is between 0 and 2PI
 			phi += 2*M_PI;
 		}
 		pixTwoTheta_sp->set(i, twoTheta);
