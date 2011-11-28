@@ -184,11 +184,7 @@ info::beginRun(Event& evt, Env& env)
 		}
 	}
 	
-	MsgLog(name(), info, "------list of read out PVs------" );
-		
-//	unsigned int detZ_no = 0;
-//	unsigned int lambda_no = 11;	
-	
+	MsgLog(name(), info, "------list of read out PVs------" );	
 	vector<double> runVals;						// vector for corresponding values
 	runVals.assign(runPVs.size(), 0.);			// set all values of PVs to zero initially
 	vector<bool> runPVvalid;					// keep track of the validity of this PV
@@ -223,6 +219,8 @@ info::beginRun(Event& evt, Env& env)
 	
 	
 //	MsgLog(name(), info, "------quantities derived from selected PVs------" );
+//	unsigned int detZ_no = 0;
+//	unsigned int lambda_no = 11;	
 //	double detZ = 0; 
 //	if (runPVvalid.at(detZ_no) ){
 //		detZ = detOffset + runVals.at(detZ_no);
