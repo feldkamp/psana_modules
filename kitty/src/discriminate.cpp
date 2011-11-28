@@ -173,8 +173,6 @@ discriminate::beginRun(Event& evt, Env& env)
 		MsgLog(name(), debug, pvNames.at(i) );
 	}
 	
-	MsgLog(name(), info, "------list of read out PVs------" );
-	//compile a list of general PVs that need to be read out for this job (and don't change for each event)
 	vector<string> runPVs;						// vector for list of PVs
 	vector<string> runDesc;						// vector for PV description
 	
@@ -217,11 +215,13 @@ discriminate::beginRun(Event& evt, Env& env)
 	unsigned int lambda_no = 11;
 	
 	
+	MsgLog(name(), info, "------list of read out PVs------" );	
 	vector<double> runVals;						// vector for corresponding values
 	runVals.assign(runPVs.size(), 0.);			// set all values of PVs to zero initially
 	vector<bool> runPVvalid;					// keep track of the validity of this PV
 	runPVvalid.assign(runPVs.size(), false);
 	
+	//try to get the PV values
 	for (unsigned int i = 0; i < runPVs.size(); i++){
 		try{
 			runVals.at(i) = env.epicsStore().value(runPVs.at(i));
@@ -231,10 +231,14 @@ discriminate::beginRun(Event& evt, Env& env)
 				<< " (" << runDesc.at(i) << ")" );
 			runPVvalid.at(i) = true;
 		}catch(...){
-			MsgLog(name(), warning, "PV " << runPVs.at(i) << " (" << runDesc.at(i) << ") doesn't exist." );
+			MsgLog(name(), info, setw(3) << "#" << i << " " 
+				<< setw(26) << runPVs.at(i) << " = "
+				<< setw(12) << " ---- " 
+				<< " (" << runDesc.at(i) << ")" );
 			runPVvalid.at(i) = false;
 		}
-	}
+	}	
+
 	
 	MsgLog(name(), info, "------quantities derived from selected PVs------" );
 	double detZ = 0; 
@@ -253,7 +257,9 @@ discriminate::beginRun(Event& evt, Env& env)
 	std::list<EventKey> keys = evt.keys();
 	MsgLog(name(), info, "------" << keys.size() << " keys in event------");
 	for ( std::list<EventKey>::iterator it = keys.begin(); it != keys.end(); it++ ){
-		MsgLog(name(), debug, "key: '" << it->key() << "'");
+		ostringstream out;
+		it->print(out);
+		MsgLog(name(), info, out.str() << ", key: '" << it->key() << "'");
 	}
 	
 
