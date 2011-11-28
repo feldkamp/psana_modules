@@ -7,6 +7,17 @@
 # By default, this script looks into the h5 files that are in the appropriate rxxxx directory
 #
 
+########################################################
+# Edit this variable accordingly
+# Files are read for source_dir/runtag and
+# written to write_dir/runtag.
+# Be careful of the trailing "/"; 
+# ensure you have the necessary read/write permissions.
+########################################################
+source_dir_default = "/reg/d/psdm/cxi/cxi35711/scratch/data/"
+write_dir_default = "/reg/neh/home/sellberg/CCA-2011/analysis/psana/figures/"
+
+
 import os
 import sys
 import string
@@ -17,7 +28,11 @@ parser = OptionParser()
 parser.add_option("-r", "--run", action="store", type="string", dest="runNumber", 
 					help="run number you wish to view", metavar="XXXX", default="")
 parser.add_option("-t", "--tag", action="store", type="string", dest="fileTag",
-                                        help="file tag for run (default: img)", metavar="FILETAG", default="img")
+					help="file tag for run (default: img)", metavar="FILETAG", default="img")
+parser.add_option("-i", "--input_dir", action="store", type="string", dest="source_dir",
+					help="input directory", metavar="INPUTDIR", default=source_dir_default)
+parser.add_option("-o", "--output_dir", action="store", type="string", dest="write_dir",
+					help="output directory", metavar="OUTPUTDIR", default=write_dir_default)
 
 (options, args) = parser.parse_args()
 
@@ -27,15 +42,9 @@ import h5py as H
 import matplotlib
 import matplotlib.pyplot as P
 
-########################################################
-# Edit this variable accordingly
-# Files are read for source_dir/runtag and
-# written to write_dir/runtag.
-# Be careful of the trailing "/"; 
-# ensure you have the necessary read/write permissions.
-########################################################
-source_dir = "/reg/d/psdm/cxi/cxi35711/scratch/data/"
-write_dir = "/reg/neh/home/sellberg/CCA-2011/analysis/psana/figures/"
+
+source_dir = options.source_dir
+write_dir = options.write_dir
 
 if(options.runNumber is not ""):
 	print "Now examining H5 files in %sr%s/ ..."%(source_dir,options.runNumber)

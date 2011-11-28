@@ -9,6 +9,18 @@
 # By default, this script looks into the h5 files that are in the appropriate rxxxx directory
 #
 
+
+########################################################
+# Edit this variable accordingly
+# Files are read for source_dir/runtag and
+# written to write_dir/runtag.
+# Be careful of the trailing "/"; 
+# ensure you have the necessary read/write permissions.
+########################################################
+source_dir_default = "/reg/d/psdm/cxi/cxi35711/scratch/data/"
+write_dir_default = "/reg/neh/home/sellberg/CCA-2011/analysis/psana/figures/"
+
+
 import os
 import sys
 import string
@@ -24,6 +36,10 @@ parser.add_option("-m", "--min", action="store", type="float", dest="MINVALUE",
 					help="ignore intensities below this q-value", metavar="min_value", default="0")
 parser.add_option("-x", "--max", action="store", type="float", dest="MAXVALUE", 
 					help="ignore intensities above this q-value", default="100000")
+parser.add_option("-i", "--input_dir", action="store", type="string", dest="source_dir",
+					help="input directory", metavar="INPUTDIR", default=source_dir_default)
+parser.add_option("-o", "--output_dir", action="store", type="string", dest="write_dir",
+					help="output directory", metavar="OUTPUTDIR", default=write_dir_default)
 
 (options, args) = parser.parse_args()
 
@@ -33,15 +49,9 @@ import h5py as H
 import matplotlib
 import matplotlib.pyplot as P
 
-########################################################
-# Edit this variable accordingly
-# Files are read for source_dir/runtag and
-# written to write_dir/runtag.
-# Be careful of the trailing "/"; 
-# ensure you have the necessary read/write permissions.
-########################################################
-source_dir = "/reg/d/psdm/cxi/cxi35711/scratch/data/"
-write_dir = "/reg/neh/home/sellberg/CCA-2011/analysis/psana/figures/"
+
+source_dir = options.source_dir
+write_dir = options.write_dir
 
 runtag = "r%s"%(options.runNumber)
 if os.path.exists(source_dir+runtag+"/"+options.fileTag+"_avg_iAvg.h5"):
@@ -50,7 +60,7 @@ if os.path.exists(source_dir+runtag+"/"+options.fileTag+"_avg_iAvg.h5"):
 	iAvg = N.array(f['/data/data'])
 	f.close()
 else:
-	print source_dir+runtag+"/"+options.fileTag+"_avg_iAvg.h5 not found, aborting script."
+	print "Source file "+source_dir+runtag+"/"+options.fileTag+"_avg_iAvg.h5 not found, aborting script."
 	sys.exit(1)
 
 if os.path.exists(source_dir+runtag+"/"+options.fileTag+"_avg_qAvg.h5"):
@@ -63,7 +73,7 @@ if os.path.exists(source_dir+runtag+"/"+options.fileTag+"_avg_qAvg.h5"):
 		qAvg = False
         f.close()
 else:
-	print source_dir+runtag+"/"+options.fileTag+"_avg_qAvg.h5 not found."
+	print "Source file "+source_dir+runtag+"/"+options.fileTag+"_avg_qAvg.h5 not found."
 
 #for i in N.arange(len(iAvg)):
 #    print "Q: %f, I: %f"%(qAvg[i], iAvg[i])
