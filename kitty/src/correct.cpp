@@ -219,7 +219,7 @@ correct::beginRun(Event& evt, Env& env)
 				p_pol->set(i, p_horzPol*(1 - sin(pixPhi_sp->get(i))*sin(pixPhi_sp->get(i))*sin(pixTwoTheta_sp->get(i))*sin(pixTwoTheta_sp->get(i))) + (1 - p_horzPol)*(1 - cos(pixPhi_sp->get(i))*cos(pixPhi_sp->get(i))*sin(pixTwoTheta_sp->get(i))*sin(pixTwoTheta_sp->get(i))));
 			}
 		} else {
-			MsgLog(name(), warning, "could not get pixel maps of phi and 2theta");
+			MsgLog(name(), warning, "could not get pixel maps of phi (address=" << pixPhi_sp.get() << ") and/or 2theta (address=" << pixTwoTheta_sp.get() << ")");
 		}
 	}
 	
