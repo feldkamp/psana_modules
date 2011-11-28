@@ -7,6 +7,7 @@
 //
 // Author List:
 //      Jan Moritz Feldkamp
+//		Jonas Alexander Sellberg
 //
 //------------------------------------------------------------------------
 
@@ -50,26 +51,31 @@ namespace kitty {
 //----------------
 correct::correct (const std::string& name)
 	: Module(name)
-	, p_back_fn("")
 	, p_useBack(0)
-	, p_gain_fn("")
+	, p_back_fn("")
 	, p_useGain(0)
-	, p_mask_fn("")
+	, p_gain_fn("")
 	, p_useMask(0)
+	, p_mask_fn("")
+	, p_usePol(0)
+	, p_horzPol(1.)
 	, io(0)
 	, p_sum(0)
 	, p_back(0)
 	, p_gain(0)
 	, p_mask(0)
+	, p_pol(0)
 	, p_count(0)
 {
   // get the values from configuration or use defaults
-	p_back_fn			= configStr("background", 		"");	
 	p_useBack			= config   ("useBackground", 	0);
-	p_gain_fn			= configStr("gainmap", 			"");	
+	p_back_fn			= configStr("background", 		"");	
 	p_useGain			= config   ("useGainmap", 		0);
-	p_mask_fn			= configStr("mask", 			"");	
+	p_gain_fn			= configStr("gainmap", 			"");	
 	p_useMask			= config   ("useMask", 			0);
+	p_mask_fn			= configStr("mask", 			"");	
+	p_usePol			= config   ("usePolarization", 	0);
+	p_horzPol			= config   ("horzPolarization", 1.);
 	
 	io = new arraydataIO();
 }
@@ -83,6 +89,7 @@ correct::~correct ()
 	delete p_back;
 	delete p_gain;
 	delete p_mask;
+	delete p_pol;
 }
 
 
@@ -92,12 +99,14 @@ void
 correct::beginJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug, "correct::beginJob()" );
-	MsgLog(name(), info, "background file = '" << p_back_fn << "'" );
 	MsgLog(name(), info, "use background correction = '" << p_useBack << "'" );
-	MsgLog(name(), info, "gain file = '" << p_gain_fn << "'" );
+	MsgLog(name(), info, "background file = '" << p_back_fn << "'" );
 	MsgLog(name(), info, "use gain correction = '" << p_useGain << "'" );
-	MsgLog(name(), info, "mask file = '" << p_mask_fn << "'" );
+	MsgLog(name(), info, "gain file = '" << p_gain_fn << "'" );
 	MsgLog(name(), info, "use mask correction = '" << p_useMask << "'" );
+	MsgLog(name(), info, "mask file = '" << p_mask_fn << "'" );
+	MsgLog(name(), info, "use polarization correction = '" << p_usePol << "'" );
+	MsgLog(name(), info, "degree of horizontal polarization = '" << p_horzPol << "'" );
 	
 	//read background, if a file was specified
 	if (p_useBack){
@@ -183,6 +192,37 @@ void
 correct::beginRun(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correct::beginRun()" );
+	
+	// create polarization correction array
+	if (p_usePol) {
+		delete p_pol;
+		p_pol = new array1D(nMaxTotalPx);
+		
+		// make sure the degree of horizontal polarization is between 0 and 1 (inclusive)
+		if (p_horzPol > 1) {
+			p_horzPol = 1;
+			MsgLog(name(), warning, "the degree of horizontal polarization was above 100%, lowered to maximum value (1)");
+		} else if (p_horzPol < 0) {
+			p_horzPol = 0;
+			MsgLog(name(), warning, "the degree of horizontal polarization was above 0%, raised to minimum value (0)");
+		}
+		
+		shared_ptr<array1D>	pixPhi_sp = evt.get(IDSTRING_PX_PHI);
+		shared_ptr<array1D> pixTwoTheta_sp = evt.get(IDSTRING_PX_TWOTHETA);
+		
+		if (pixPhi_sp && pixTwoTheta_sp) {
+			MsgLog(name(), debug, "read event pixel map of phi of size " << pixPhi_sp->size());
+			MsgLog(name(), debug, "read event pixel map of 2theta of size " << pixTwoTheta_sp->size());
+			
+			// calculate polarization correction for each pixel (from Hura et al JCP 2000)
+			for (int i = 0; i < nMaxTotalPx; i++) {
+				p_pol->set(i, p_horzPol*(1 - sin(pixPhi_sp->get(i))*sin(pixPhi_sp->get(i))*sin(pixTwoTheta_sp->get(i))*sin(pixTwoTheta_sp->get(i))) + (1 - p_horzPol)*(1 - cos(pixPhi_sp->get(i))*cos(pixPhi_sp->get(i))*sin(pixTwoTheta_sp->get(i))*sin(pixTwoTheta_sp->get(i))));
+			}
+		} else {
+			MsgLog(name(), warning, "could not get pixel maps of phi and 2theta");
+		}
+	}
+	
 }
 
 
@@ -206,7 +246,6 @@ correct::event(Event& evt, Env& env)
 
 	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
 	
-	
 	if (data_sp){
 		MsgLog(name(), debug, "read event data of size " << data_sp->size() );
 		MsgLog(name(), debug, "\n---histogram of event data before correction---\n" 
@@ -221,6 +260,11 @@ correct::event(Event& evt, Env& env)
 		//-------------------------------------------------gain		
 		if (p_useGain){
 			fail += data_sp->divideByArrayElementwise( p_gain );
+		}
+		
+		//-------------------------------------------------polarization
+		if (p_usePol){
+			fail += data_sp->divideByArrayElementwise( p_pol );
 		}
 		
 		//-------------------------------------------------mask

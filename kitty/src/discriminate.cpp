@@ -7,6 +7,7 @@
 //
 // Author List:
 //      Jan Moritz Feldkamp
+//		Jonas Alexander Sellberg
 //
 //------------------------------------------------------------------------
 
@@ -363,10 +364,22 @@ discriminate::beginRun(Event& evt, Env& env)
 		double y_um = pixY_um_sp->get(i);
 		double r_um = sqrt( x_um*x_um + y_um*y_um );
 		double twoTheta = atan( r_um/1000.0/detZ );
-		double phi = atan( y_um/x_um );
+		double phi;
+		// setup UHP
+		if (x_um == 0) { // make sure that if x = 0 the angle is 0 (r = 0 is assumed to have phi = 0)
+			phi = 0;
+		} else {
+			phi = atan( y_um/x_um ); // atan gives the correct result if x != 0, but only for the UHP! Need to add PI to all pixels in LHP!
+		}
+		// correct LHP by adding PI
+		if ( y_um < 0) {
+			phi += M_PI;
+		}
+		if (phi < 0) { // make sure the angle is between 0 and 2PI
+			phi += 2*M_PI;
+		}
 		pixTwoTheta_sp->set(i, twoTheta);
 		pixPhi_sp->set(i, phi);
-		
 		pixX_q_sp->set(i, two_k * sin(twoTheta/2) * cos(phi) );
 		pixY_q_sp->set(i, two_k * sin(twoTheta/2) * sin(phi) );
 	}
@@ -487,7 +500,7 @@ discriminate::event(Event& evt, Env& env)
 //	}
 
 	ostringstream evtinfo;
-	evtinfo <<  "evt# " << p_count << ", ";
+	evtinfo <<  "evt #" << p_count << ", ";
 
 	std::ostringstream osst;
 //	osst << "t" << eventId->time();

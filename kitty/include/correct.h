@@ -88,19 +88,21 @@ protected:
 
 private:
 	
-	std::string p_back_fn;
 	int p_useBack;
-	std::string p_gain_fn;
+	std::string p_back_fn;
 	int p_useGain;
-	std::string p_mask_fn;
+	std::string p_gain_fn;
 	int p_useMask;
-	
+	std::string p_mask_fn;
+	int p_usePol;
+	double p_horzPol;
 	
 	arraydataIO *io;
 	array1D *p_sum;
 	array1D *p_back;
 	array1D *p_gain;
 	array1D *p_mask;
+	array1D *p_pol;
 
 	int p_count;
 };
