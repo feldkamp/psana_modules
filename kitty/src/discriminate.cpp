@@ -374,7 +374,7 @@ discriminate::beginRun(Event& evt, Env& env)
 		double x_um = pixX_um_sp->get(i);
 		double y_um = pixY_um_sp->get(i);
 		double r_um = sqrt( x_um*x_um + y_um*y_um );
-		double twoTheta = atan( r_um/1000.0/detZ );
+		double twoTheta = atan( r_um/1000.0/p_detDistance );
 		double phi = atan2( y_um, x_um );
 		if (phi < 0) { // make sure the angle is between 0 and 2PI
 			phi += 2*M_PI;
