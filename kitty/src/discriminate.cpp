@@ -364,17 +364,7 @@ discriminate::beginRun(Event& evt, Env& env)
 		double y_um = pixY_um_sp->get(i);
 		double r_um = sqrt( x_um*x_um + y_um*y_um );
 		double twoTheta = atan( r_um/1000.0/detZ );
-		double phi;
-		// setup UHP
-		if (x_um == 0) { // make sure that if x = 0 the angle is 0 (r = 0 is assumed to have phi = 0)
-			phi = 0;
-		} else {
-			phi = atan( y_um/x_um ); // atan gives the correct result if x != 0, but only for the UHP! Need to add PI to all pixels in LHP!
-		}
-		// correct LHP by adding PI
-		if ( y_um < 0) {
-			phi += M_PI;
-		}
+		double phi = atan2( y_um, x_um );
 		if (phi < 0) { // make sure the angle is between 0 and 2PI
 			phi += 2*M_PI;
 		}
