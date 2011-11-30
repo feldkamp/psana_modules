@@ -76,6 +76,7 @@ discriminate::discriminate (const std::string& name)
 	, p_shiftX(0)
 	, p_shiftY(0)
 	, p_detOffset(0)
+	, p_detDistance(0)
 	, p_sum_sp()
 	, p_hitInt()
 	, m_dataSourceString("")
@@ -110,6 +111,7 @@ discriminate::discriminate (const std::string& name)
 	p_shiftX					= config("shiftX",					-867.355);
 	p_shiftY					= config("shiftY",					-862.758);
 	p_detOffset 				= config("detOffset",				500.0 + 63.0);	// see explanation in header
+	p_detDistance 				= config("detDistance",				0.);
 	
 	p_sum_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
 }
@@ -141,6 +143,7 @@ discriminate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "shiftX = " << p_shiftX );
 	MsgLog(name(), info, "shiftY = " << p_shiftY );
 	MsgLog(name(), info, "detOffset = " << p_detOffset );
+	MsgLog(name(), info, "detDistance = " << p_detDistance );
 	
 	MsgLog(name(), debug, "------CSPAD info------" );
 	MsgLog(name(), debug, "nRowsPerASIC = " << nRowsPerASIC );
@@ -179,7 +182,7 @@ discriminate::beginRun(Event& evt, Env& env)
 	
 	runPVs.push_back("CXI:DS1:MMS:06");									//# 0
 	runDesc.push_back("detector position");
-	unsigned int detZ_no = 0;
+	unsigned int detPos_no = 0;
 	
 	runPVs.push_back("BEND:DMP1:400:BDES");								//# 1
 	runDesc.push_back("electron beam energy");
@@ -241,17 +244,25 @@ discriminate::beginRun(Event& evt, Env& env)
 	}	
 
 	
-	MsgLog(name(), info, "------quantities derived from selected PVs------" );
-	double detZ = 0; 
-	if (runPVvalid.at(detZ_no) ){
-		detZ = p_detOffset + runVals.at(detZ_no);
+	//determine detector distance
+	//if the user didn't provide a detector distance,
+	//calculate it from p_detOffset and the PV value for the detector stage
+	//if the user specified a value, just use that and ignore detOffset and PV
+	if (p_detDistance == 0){
+		if (runPVvalid.at(detPos_no) ){
+			p_detDistance = p_detOffset + runVals.at(detPos_no);
+		}
 	}
+	
+	//calculate the wave number k
 	double lambda = 0;
 	if (runPVvalid.at(lambda_no) ){
 		lambda = runVals.at(lambda_no);
 	}
 	double two_k = 2*2*M_PI/lambda;								//in units of inv. nanometers
-	MsgLog(name(), info, "detZ = " << detZ << " mm");				
+	
+	MsgLog(name(), info, "------derived quantities------" );
+	MsgLog(name(), info, "detDistance = " << p_detDistance << " mm");				
 	MsgLog(name(), info, "2*k = " << two_k << "nm^-1" );
 	MsgLog(name(), info, " ");
 	
@@ -402,7 +413,9 @@ discriminate::beginRun(Event& evt, Env& env)
 		arraydataIO *io = new arraydataIO();
 		string ext = ".h5";
 		array2D *two = 0;
-
+		
+		//raw images
+		ext = "_raw.h5";
 		createRawImageCSPAD( pixX_um_sp.get(), two );		
 		io->writeToFile( p_outputPrefix+"_pixX_um"+ext, two );
 		
@@ -430,9 +443,41 @@ discriminate::beginRun(Event& evt, Env& env)
 		createRawImageCSPAD( pixTwoTheta_sp.get(), two );
 		io->writeToFile( p_outputPrefix+"_pixTwoTheta"+ext, two );
 		
-		createRawImageCSPAD( pixPhi_sp.get(), two );
+		createAssembledImageCSPAD( pixPhi_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
 		io->writeToFile( p_outputPrefix+"_pixPhi"+ext, two );
 		
+		//assembled images
+		ext = "_asm.h5";
+
+		createAssembledImageCSPAD( pixX_um_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );		
+		io->writeToFile( p_outputPrefix+"_pixX_um"+ext, two );
+		
+		createAssembledImageCSPAD( pixY_um_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_um"+ext, two );
+		
+		createAssembledImageCSPAD( pixX_int_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixX_int"+ext, two );
+		
+		createAssembledImageCSPAD( pixY_int_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_int"+ext, two );
+		
+		createAssembledImageCSPAD( pixX_pix_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixX_pix"+ext, two );
+		
+		createAssembledImageCSPAD( pixY_pix_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_pix"+ext, two );
+		
+		createAssembledImageCSPAD( pixX_q_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixX_q"+ext, two );
+		
+		createAssembledImageCSPAD( pixY_q_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_q"+ext, two );
+		
+		createAssembledImageCSPAD( pixTwoTheta_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixTwoTheta"+ext, two );
+		
+		createAssembledImageCSPAD( pixPhi_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixPhi"+ext, two );		
 		delete two;
 		delete io;
 	}
