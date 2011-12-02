@@ -311,21 +311,37 @@ discriminate::beginRun(Event& evt, Env& env)
 		MsgLog(name(), error, "Could not retrieve calibration data");
 	}
 	
-	//---read calibration information arrays---
-	//---possibly take some of this out if not needed and memory is needed
-	//
+	/*---read calibration information arrays---
+	 *---possibly take some of this out if not needed and memory is needed
+	 *
+	 * IMPORTANT! After correspondence with Mikhail Dubrovin, it is
+	 * clear that in the class CSPadPixCoords, the coordinate system is adapted
+	 * so that it is the same as used in many graphical applications 
+	 * (e.g. python's matplotlib.imshow) that plots 2D matrices. This means that:
+	 * - the 1st ascending row-index is for the X-coordinate, and is
+	 *   accessed through getPixCoorArrX()
+	 * - the 2nd ascending column-index is for the Y-coordinate, and is
+	 *   accessed through getPixCoorArrY()
+	 * - the origin of this matrix coordinate system is located in the 
+	 *	 top left corner, as it should be for matrix element a(1,1)
+	 * - the X-axis is directed downward from a(1,1) to a(n,1)
+	 * - the Y-axis is directed to the right from a(1,1) to a(1,n)
+	 *
+	 *		=> getPixCoorArrX() corresponds to the (-Y)-axis in the CXI coordinate system
+	 *
+	 *		=> getPixCoorArrY() corresponds to the (+X)-axis in the CXI coordinate system
+	 */
 	// in microns
-	shared_ptr<array1D> pixX_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx) );
-	shared_ptr<array1D> pixY_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_um(), nMaxTotalPx) );
+	shared_ptr<array1D> pixX_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_um(), nMaxTotalPx) );
+	shared_ptr<array1D> pixY_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx) );
 	
 	// in pixel index (integer pixel position only)
-	shared_ptr<array1D> pixX_int_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_int(), nMaxTotalPx) );
-	shared_ptr<array1D> pixY_int_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_int(), nMaxTotalPx) );
-
+	shared_ptr<array1D> pixX_int_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_int(), nMaxTotalPx) );
+	shared_ptr<array1D> pixY_int_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_int(), nMaxTotalPx) );
+	
 	// in pix (pixel index, including fraction)
-	shared_ptr<array1D> pixX_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_pix(), nMaxTotalPx) );
-	shared_ptr<array1D> pixY_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_pix(), nMaxTotalPx) );
-
+	shared_ptr<array1D> pixX_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_pix(), nMaxTotalPx) );
+	shared_ptr<array1D> pixY_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_pix(), nMaxTotalPx) );
 	
 	
 	MsgLog(name(), debug, "------read pixel arrays from calib data------");	
@@ -416,6 +432,7 @@ discriminate::beginRun(Event& evt, Env& env)
 		
 		//raw images
 		ext = "_raw.h5";
+		
 		createRawImageCSPAD( pixX_um_sp.get(), two );		
 		io->writeToFile( p_outputPrefix+"_pixX_um"+ext, two );
 		
