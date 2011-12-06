@@ -380,6 +380,10 @@ discriminate::beginRun(Event& evt, Env& env)
 	pixX_pix_sp->subtractValue( shift_X_pix );
 	pixY_pix_sp->subtractValue( shift_Y_pix );
 	
+	pixY_um_sp->multiplyByValue( -1.0 );
+	pixY_int_sp->multiplyByValue( -1.0 );
+	pixY_pix_sp->multiplyByValue( -1.0 );
+	
 	// create q-value vectors, (inverse nanometers)
 	shared_ptr<array1D> pixX_q_sp ( new array1D(nMaxTotalPx) );
 	shared_ptr<array1D> pixY_q_sp ( new array1D(nMaxTotalPx) );
@@ -460,7 +464,7 @@ discriminate::beginRun(Event& evt, Env& env)
 		createRawImageCSPAD( pixTwoTheta_sp.get(), two );
 		io->writeToFile( p_outputPrefix+"_pixTwoTheta"+ext, two );
 		
-		createAssembledImageCSPAD( pixPhi_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
+		createRawImageCSPAD( pixPhi_sp.get(), two );
 		io->writeToFile( p_outputPrefix+"_pixPhi"+ext, two );
 		
 		//assembled images
@@ -494,7 +498,8 @@ discriminate::beginRun(Event& evt, Env& env)
 		io->writeToFile( p_outputPrefix+"_pixTwoTheta"+ext, two );
 		
 		createAssembledImageCSPAD( pixPhi_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixPhi"+ext, two );		
+		io->writeToFile( p_outputPrefix+"_pixPhi"+ext, two );
+		
 		delete two;
 		delete io;
 	}
