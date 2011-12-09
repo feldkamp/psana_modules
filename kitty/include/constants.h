@@ -43,6 +43,18 @@ namespace kitty {
 	const std::string IDSTRING_CUSTOM_EVENTNAME = "CUSTOM_EVENTNAME";
 	const std::string IDSTRING_OUTPUT_PREFIX = "OUTPUT_PREFIX";
 	
+	
+	const string pvDetPos = "pvDetPos";
+	const string pvLambda = "pvLambda";
+	const string pvElEnergy = "pvElEnergy";
+	const string pvNElectrons = "pvNElectrons";
+	const string pvRepRate = "pvRepRate";
+	const string pvPeakCurrent = "pvPeakCurrent";
+	const string pvPulseLength = "pvPulseLength";
+	const string pvEbeamLoss = "pvEbeamLoss";
+	const string pvNumPhotons = "pvNumPhotons";
+	const string pvPhotonEnergy = "pvPhotonEnergy";
+	
 }//namespace
 
 #define WAIT std::cerr << "continue by pressing the <return> key..."; std::cin.get();

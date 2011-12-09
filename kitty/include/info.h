@@ -26,8 +26,7 @@
 //-------------------------------
 
 //headers must be available through symbolic links or copies in the kitty include directory
-#include <kitty/arrayclasses.h>
-#include <kitty/arraydataIO.h>
+
 
 //------------------------------------
 // Collaborating Class Declarations --
@@ -99,8 +98,8 @@ private:
 	
 	std::ofstream fout;
 	
-	std::vector<std::string> runPVs;						// vector for list of PVs
-	std::vector<std::string> runDesc;						// vector for PV description
+	std::map<std::string,std::string> p_pvNames;					// container for list of PVs
+	std::map<std::string,std::string> p_pvDesc;						// container for PV description
 
 
 };
