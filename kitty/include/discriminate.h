@@ -14,6 +14,7 @@
 // C/C++ Headers --
 //-----------------
 #include <vector>
+#include <map>
 
 //----------------------
 // Base Class Headers --
@@ -63,7 +64,9 @@ namespace kitty {
  *  @author Jan Moritz Feldkamp
  */
 
+
 class discriminate : public Module {
+
 public:
 
 	// Default constructor
@@ -93,7 +96,8 @@ public:
 
 	/// Method which is called once at the end of the job
 	virtual void endJob(Event& evt, Env& env);
-	
+
+	void makePixelArrays();	
 
 protected:
 
@@ -111,6 +115,7 @@ private:
 	int p_skipcount;
 	int p_hitcount;
 	int p_count;
+	int p_makePixelArrays_count;
 	// if g_stopflag is set to true, execution will stop as soon as the beginning of the next event
 	bool p_stopflag;	
 
@@ -118,7 +123,13 @@ private:
 	double p_shiftX;
 	double p_shiftY;
 	double p_detOffset;				// default = 500.0 + 63.0 = 563
-	double p_detDistance;
+	double p_detDistance;			// detector distance from sample
+	double p_lambda;				// wavelength
+	
+	std::map<std::string,std::string> p_pvNames;					// container for list of PVs
+	std::map<std::string,std::string> p_pvDesc;						// container for PV description
+	std::map<std::string,double> p_pvValue;							// container for PV value
+	std::map<std::string,bool> p_pvValid;							// container for PV validity
 	
 	shared_ptr<array1D> p_sum_sp;	// keep a running sum of all events
 
@@ -137,6 +148,16 @@ private:
 	//                           ||               ............. ||
 	//     jet                   close pos                      far pos
 	//    
+	shared_ptr<array1D> p_pixX_um_sp;
+	shared_ptr<array1D> p_pixY_um_sp;
+	shared_ptr<array1D> p_pixX_int_sp;
+	shared_ptr<array1D> p_pixY_int_sp;
+	shared_ptr<array1D> p_pixX_pix_sp;
+	shared_ptr<array1D> p_pixY_pix_sp;
+	shared_ptr<array1D> p_pixX_q_sp;
+	shared_ptr<array1D> p_pixY_q_sp;
+	shared_ptr<array1D> p_pixTwoTheta_sp;
+	shared_ptr<array1D> p_pixPhi_sp;
 
 	//---------------------------------------------------------------pdsm standard stuff
 	//needed to read data from detector

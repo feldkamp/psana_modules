@@ -71,14 +71,29 @@ discriminate::discriminate (const std::string& name)
 	, p_skipcount(0)
 	, p_hitcount(0)
 	, p_count(0)
+	, p_makePixelArrays_count(0)
 	, p_stopflag(false)
 	, p_useShift(0)	
 	, p_shiftX(0)
 	, p_shiftY(0)
 	, p_detOffset(0)
 	, p_detDistance(0)
+	, p_pvNames()
+	, p_pvDesc()
+	, p_pvValue()
+	, p_pvValid()
 	, p_sum_sp()
 	, p_hitInt()
+	, p_pixX_um_sp()
+	, p_pixY_um_sp()
+	, p_pixX_int_sp()
+	, p_pixY_int_sp()
+	, p_pixX_pix_sp()
+	, p_pixY_pix_sp()
+	, p_pixX_q_sp()
+	, p_pixY_q_sp()
+	, p_pixTwoTheta_sp()
+	, p_pixPhi_sp()
 	, m_dataSourceString("")
 	, m_calibSourceString("")
 	, m_calibDir("")
@@ -111,7 +126,6 @@ discriminate::discriminate (const std::string& name)
 	p_shiftX					= config("shiftX",					-867.355);
 	p_shiftY					= config("shiftY",					-862.758);
 	p_detOffset 				= config("detOffset",				500.0 + 63.0);	// see explanation in header
-	p_detDistance 				= config("detDistance",				0.);
 	
 	p_sum_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
 }
@@ -143,7 +157,6 @@ discriminate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "shiftX = " << p_shiftX );
 	MsgLog(name(), info, "shiftY = " << p_shiftY );
 	MsgLog(name(), info, "detOffset = " << p_detOffset );
-	MsgLog(name(), info, "detDistance = " << p_detDistance );
 	
 	MsgLog(name(), debug, "------CSPAD info------" );
 	MsgLog(name(), debug, "nRowsPerASIC = " << nRowsPerASIC );
@@ -155,6 +168,38 @@ discriminate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), debug, "nPxPer2x1 = " << nPxPer2x1 ); 
 	MsgLog(name(), debug, "nMaxPxPerQuad = " << nMaxPxPerQuad ); 
 	MsgLog(name(), debug, "nMaxTotalPx = " << nMaxTotalPx ); 
+	
+	
+	p_pvNames[pvDetPos] = "CXI:DS1:MMS:06";
+	p_pvDesc[pvDetPos] = "detector position";
+
+	p_pvNames[pvLambda] = "SIOC:SYS0:ML00:AO192";
+	p_pvDesc[pvLambda] = "wavelength [nm]";
+		
+	p_pvNames[pvElEnergy] = "BEND:DMP1:400:BDES";
+	p_pvDesc[pvElEnergy] = "electron beam energy";
+	
+	p_pvNames[pvNElectrons] = "BPMS:DMP1:199:TMIT1H";
+	p_pvDesc[pvNElectrons] = "particle N_electrons";
+
+	p_pvNames[pvRepRate] = "EVNT:SYS0:1:LCLSBEAMRATE";
+	p_pvDesc[pvRepRate] = "LCLS repetition rate [Hz]";
+		
+	p_pvNames[pvPeakCurrent] = "SIOC:SYS0:ML00:AO195";
+	p_pvDesc[pvPeakCurrent] = "peak current after second bunch compressor";
+	
+	p_pvNames[pvPulseLength] = "SIOC:SYS0:ML00:AO820";
+	p_pvDesc[pvPulseLength] = "pulse length";
+	
+	p_pvNames[pvEbeamLoss] = "SIOC:SYS0:ML00:AO569";
+	p_pvDesc[pvEbeamLoss] = "ebeam energy loss converted to photon mJ";
+	
+	p_pvNames[pvNumPhotons] = "SIOC:SYS0:ML00:AO580";
+	p_pvDesc[pvNumPhotons] = "calculated number of photons";
+	
+	p_pvNames[pvPhotonEnergy] = "SIOC:SYS0:ML00:AO541";
+	p_pvDesc[pvPhotonEnergy] = "photon beam energy [eV]";
+
 }
 
 
@@ -177,102 +222,32 @@ discriminate::beginRun(Event& evt, Env& env)
 		MsgLog(name(), debug, pvNames.at(i) );
 	}
 	
-	vector<string> runPVs;						// vector for list of PVs
-	vector<string> runDesc;						// vector for PV description
-	
-	runPVs.push_back("CXI:DS1:MMS:06");									//# 0
-	runDesc.push_back("detector position");
-	unsigned int detPos_no = 0;
-	
-	runPVs.push_back("BEND:DMP1:400:BDES");								//# 1
-	runDesc.push_back("electron beam energy");
-	
-	runPVs.push_back("SIOC:SYS0:ML00:AO289");							//# 2
-	runDesc.push_back("Vernier energy");
-	
-	runPVs.push_back("BPMS:DMP1:199:TMIT1H");							//# 3
-	runDesc.push_back("particle N_electrons");
-
-	runPVs.push_back("EVNT:SYS0:1:LCLSBEAMRATE");						//# 4
-	runDesc.push_back("LCLS repetition rate [Hz]");
-		
-	runPVs.push_back("SIOC:SYS0:ML00:AO195");							//# 5
-	runDesc.push_back("peak current after second bunch compressor");
-	
-	runPVs.push_back("SIOC:SYS0:ML00:AO820");							//# 6
-	runDesc.push_back("pulse length");
-	
-	runPVs.push_back("SIOC:SYS0:ML00:AO569");							//# 7
-	runDesc.push_back("ebeam energy loss converted to photon mJ");
-	
-	runPVs.push_back("SIOC:SYS0:ML00:AO580");							//# 8
-	runDesc.push_back("calculated number of photons");
-	
-	runPVs.push_back("SIOC:SYS0:ML00:AO541");							//# 9
-	runDesc.push_back("photon beam energy [eV]");
-	
-	runPVs.push_back("SIOC:SYS0:ML00:AO627");							//# 10
-	runDesc.push_back("photon beam energy");
-	
-	runPVs.push_back("SIOC:SYS0:ML00:AO192");							//# 11
-	runDesc.push_back("wavelength [nm]");
-	unsigned int lambda_no = 11;
-	
-	
-	MsgLog(name(), info, "------list of read out PVs------" );	
-	vector<double> runVals;						// vector for corresponding values
-	runVals.assign(runPVs.size(), 0.);			// set all values of PVs to zero initially
-	vector<bool> runPVvalid;					// keep track of the validity of this PV
-	runPVvalid.assign(runPVs.size(), false);
 	
 	//try to get the PV values
-	for (unsigned int i = 0; i < runPVs.size(); i++){
+	map<string,string>::iterator it;
+	ostringstream osst;
+	for (it = p_pvNames.begin(); it != p_pvNames.end(); it++){
+		osst << setw(20) << it->first << " " << setw(26) << it->second; 
 		try{
-			runVals.at(i) = env.epicsStore().value(runPVs.at(i));
-			MsgLog(name(), info, setw(3) << "#" << i << " " 
-				<< setw(26) << runPVs.at(i) << " = " 
-				<< setw(12) << runVals.at(i) 
-				<< " (" << runDesc.at(i) << ")" );
-			runPVvalid.at(i) = true;
+			p_pvValue[it->first] = env.epicsStore().value(it->second);
+			p_pvValid[it->first] = true;
+			osst << " = " << setw(12) << p_pvValue[it->first];
 		}catch(...){
-			MsgLog(name(), info, setw(3) << "#" << i << " " 
-				<< setw(26) << runPVs.at(i) << " = "
-				<< setw(12) << " ---- " 
-				<< " (" << runDesc.at(i) << ")" );
-			runPVvalid.at(i) = false;
+			p_pvValid[it->first] = false;
+			osst << setw(12) << " ---- ";
 		}
-	}	
-
-	
-	//determine detector distance
-	//if the user didn't provide a detector distance,
-	//calculate it from p_detOffset and the PV value for the detector stage
-	//if the user specified a value, just use that and ignore detOffset and PV
-	if (p_detDistance == 0){
-		if (runPVvalid.at(detPos_no) ){
-			p_detDistance = p_detOffset + runVals.at(detPos_no);
-		}
+		osst << " (" << p_pvDesc[it->first] << ")" << endl;
 	}
+	MsgLog(name(), info, "------list of read out PVs------\n" << osst.str() );
 	
-	//calculate the wave number k
-	double lambda = 0;
-	if (runPVvalid.at(lambda_no) ){
-		lambda = runVals.at(lambda_no);
-	}
-	double two_k = 2*2*M_PI/lambda;								//in units of inv. nanometers
 	
-	MsgLog(name(), info, "------derived quantities------" );
-	MsgLog(name(), info, "detDistance = " << p_detDistance << " mm");				
-	MsgLog(name(), info, "2*k = " << two_k << "nm^-1" );
-	MsgLog(name(), info, " ");
-	
-	std::list<EventKey> keys = evt.keys();
-	MsgLog(name(), info, "------" << keys.size() << " keys in event------");
-	for ( std::list<EventKey>::iterator it = keys.begin(); it != keys.end(); it++ ){
-		ostringstream out;
-		it->print(out);
-		MsgLog(name(), info, out.str() << ", key: '" << it->key() << "'");
-	}
+//	std::list<EventKey> keys = evt.keys();
+//	MsgLog(name(), info, "------" << keys.size() << " keys in event------");
+//	for ( list<EventKey>::iterator it = keys.begin(); it != keys.end(); it++ ){
+//		ostringstream out;
+//		it->print(out);
+//		MsgLog(name(), info, out.str() << ", key: '" << it->key() << "'");
+//	}
 	
 
 	//get run rumber for this run
@@ -311,198 +286,19 @@ discriminate::beginRun(Event& evt, Env& env)
 		MsgLog(name(), error, "Could not retrieve calibration data");
 	}
 	
-	/*---read calibration information arrays---
-	 *---possibly take some of this out if not needed and memory is needed
-	 *
-	 * IMPORTANT! After correspondence with Mikhail Dubrovin, it is
-	 * clear that in the class CSPadPixCoords, the coordinate system is adapted
-	 * so that it is the same as used in many graphical applications 
-	 * (e.g. python's matplotlib.imshow) that plots 2D matrices. This means that:
-	 * - the 1st ascending row-index is for the X-coordinate, and is
-	 *   accessed through getPixCoorArrX()
-	 * - the 2nd ascending column-index is for the Y-coordinate, and is
-	 *   accessed through getPixCoorArrY()
-	 * - the origin of this matrix coordinate system is located in the 
-	 *	 top left corner, as it should be for matrix element a(1,1)
-	 * - the X-axis is directed downward from a(1,1) to a(n,1)
-	 * - the Y-axis is directed to the right from a(1,1) to a(1,n)
-	 *
-	 *		=> getPixCoorArrX() corresponds to the (-Y)-axis in the CXI coordinate system
-	 *
-	 *		=> getPixCoorArrY() corresponds to the (+X)-axis in the CXI coordinate system
-	 */
-	// in microns
-	shared_ptr<array1D> pixX_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_um(), nMaxTotalPx) );
-	shared_ptr<array1D> pixY_um_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx) );
-	
-	// in pixel index (integer pixel position only)
-	shared_ptr<array1D> pixX_int_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_int(), nMaxTotalPx) );
-	shared_ptr<array1D> pixY_int_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_int(), nMaxTotalPx) );
-	
-	// in pix (pixel index, including fraction)
-	shared_ptr<array1D> pixX_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrY_pix(), nMaxTotalPx) );
-	shared_ptr<array1D> pixY_pix_sp ( new array1D( m_pix_coords_cspad->getPixCoorArrX_pix(), nMaxTotalPx) );
-	
-	
-	MsgLog(name(), debug, "------read pixel arrays from calib data------");	
-	MsgLog(name(), debug, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
-	MsgLog(name(), debug, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
-	MsgLog(name(), debug, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
-	MsgLog(name(), debug, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
-	MsgLog(name(), debug, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
-	MsgLog(name(), debug, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
-	
-	//shift pixel arrays to be centered around incoming beam at (0, 0)
-	//this only works exactly, when the beam was exactly centered in the CSPAD
-	//otherwise, use manual correction of shiftX & shiftY below
-	double shift_X_um = (pixX_um_sp->calcMin()+pixX_um_sp->calcMax())/2;
-	double shift_Y_um = (pixY_um_sp->calcMin()+pixY_um_sp->calcMax())/2;
-	double shift_X_int = (pixX_int_sp->calcMin()+pixX_int_sp->calcMax())/2;
-	double shift_Y_int = (pixY_int_sp->calcMin()+pixY_int_sp->calcMax())/2;
-	double shift_X_pix = (pixX_pix_sp->calcMin()+pixX_pix_sp->calcMax())/2;
-	double shift_Y_pix = (pixY_pix_sp->calcMin()+pixY_pix_sp->calcMax())/2;
-	
-	if (p_useShift){
-		//pixel size values estimated from the read out arrays above, seems about right
-		const double pixelSizeXY_um = m_cspad_calibpar->getColSize_um();		// == getRowSize_um(), square pixels (luckily)
-		shift_X_um = p_shiftX * pixelSizeXY_um;
-		shift_Y_um = p_shiftX * pixelSizeXY_um;
-		shift_X_int = p_shiftX;
-		shift_Y_int = p_shiftY;
-		shift_X_pix = p_shiftX;
-		shift_Y_pix = p_shiftY;
-	}
-	
-	pixX_um_sp->subtractValue( shift_X_um );
-	pixY_um_sp->subtractValue( shift_Y_um );
-	pixX_int_sp->subtractValue( shift_X_int );
-	pixY_int_sp->subtractValue( shift_Y_int );
-	pixX_pix_sp->subtractValue( shift_X_pix );
-	pixY_pix_sp->subtractValue( shift_Y_pix );
-	
-	pixY_um_sp->multiplyByValue( -1.0 );
-	pixY_int_sp->multiplyByValue( -1.0 );
-	pixY_pix_sp->multiplyByValue( -1.0 );
-	
-	// create q-value vectors, (inverse nanometers)
-	shared_ptr<array1D> pixX_q_sp ( new array1D(nMaxTotalPx) );
-	shared_ptr<array1D> pixY_q_sp ( new array1D(nMaxTotalPx) );
-	shared_ptr<array1D> pixTwoTheta_sp ( new array1D(nMaxTotalPx) );
-	shared_ptr<array1D> pixPhi_sp ( new array1D(nMaxTotalPx) );
-			
-	for (unsigned int i = 0; i < pixX_q_sp->size(); i++){
-		double x_um = pixX_um_sp->get(i);
-		double y_um = pixY_um_sp->get(i);
-		double r_um = sqrt( x_um*x_um + y_um*y_um );
-		double twoTheta = atan( r_um/1000.0/p_detDistance );
-		double phi = atan2( y_um, x_um );
-		if (phi < 0) { // make sure the angle is between 0 and 2PI
-			phi += 2*M_PI;
-		}
-		pixTwoTheta_sp->set(i, twoTheta);
-		pixPhi_sp->set(i, phi);
-		pixX_q_sp->set(i, two_k * sin(twoTheta/2) * cos(phi) );
-		pixY_q_sp->set(i, two_k * sin(twoTheta/2) * sin(phi) );
-	}
-	
-	MsgLog(name(), info, "------shifted pixels arrays------");	
-	MsgLog(name(), info, "PixCoorArrX_um  min: " << pixX_um_sp->calcMin()  << ", max: " << pixX_um_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_um  min: " << pixY_um_sp->calcMin()  << ", max: " << pixY_um_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrX_int min: " << pixX_int_sp->calcMin() << ", max: " << pixX_int_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_int min: " << pixY_int_sp->calcMin() << ", max: " << pixY_int_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrX_pix min: " << pixX_pix_sp->calcMin() << ", max: " << pixX_pix_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_pix min: " << pixY_pix_sp->calcMin() << ", max: " << pixY_pix_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrX_q   min: " << pixX_q_sp->calcMin()   << ", max: " << pixX_q_sp->calcMax() );
-	MsgLog(name(), info, "PixCoorArrY_q   min: " << pixY_q_sp->calcMin()   << ", max: " << pixY_q_sp->calcMax() );
-	MsgLog(name(), info, "PixTwoTheta     min: " << pixTwoTheta_sp->calcMin()   << ", max: " << pixTwoTheta_sp->calcMax() );
-	MsgLog(name(), info, "PixPhi          min: " << pixPhi_sp->calcMin()   << ", max: " << pixPhi_sp->calcMax() );
+	makePixelArrays();
 	
 	//add the calibration arrays to the event for other modules to use
-	evt.put( pixX_um_sp,  IDSTRING_PX_X_um);
-	evt.put( pixY_um_sp,  IDSTRING_PX_Y_um);
-	evt.put( pixX_int_sp, IDSTRING_PX_X_int);
-	evt.put( pixY_int_sp, IDSTRING_PX_Y_int);
-	evt.put( pixX_pix_sp, IDSTRING_PX_X_pix);
-	evt.put( pixY_pix_sp, IDSTRING_PX_Y_pix);
-	evt.put( pixX_q_sp,   IDSTRING_PX_X_q);
-	evt.put( pixY_q_sp,   IDSTRING_PX_Y_q);
-	evt.put( pixTwoTheta_sp,   IDSTRING_PX_TWOTHETA);
-	evt.put( pixPhi_sp,   IDSTRING_PX_PHI);	
-	
-	if (p_pixelVectorOutput){
-		arraydataIO *io = new arraydataIO();
-		string ext = ".h5";
-		array2D *two = 0;
-		
-		//raw images
-		ext = "_raw.h5";
-		
-		createRawImageCSPAD( pixX_um_sp.get(), two );		
-		io->writeToFile( p_outputPrefix+"_pixX_um"+ext, two );
-		
-		createRawImageCSPAD( pixY_um_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixY_um"+ext, two );
-		
-		createRawImageCSPAD( pixX_int_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixX_int"+ext, two );
-		
-		createRawImageCSPAD( pixY_int_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixY_int"+ext, two );
-		
-		createRawImageCSPAD( pixX_pix_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixX_pix"+ext, two );
-		
-		createRawImageCSPAD( pixY_pix_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixY_pix"+ext, two );
-		
-		createRawImageCSPAD( pixX_q_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixX_q"+ext, two );
-		
-		createRawImageCSPAD( pixY_q_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixY_q"+ext, two );
-		
-		createRawImageCSPAD( pixTwoTheta_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixTwoTheta"+ext, two );
-		
-		createRawImageCSPAD( pixPhi_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixPhi"+ext, two );
-		
-		//assembled images
-		ext = "_asm.h5";
-
-		createAssembledImageCSPAD( pixX_um_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );		
-		io->writeToFile( p_outputPrefix+"_pixX_um"+ext, two );
-		
-		createAssembledImageCSPAD( pixY_um_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixY_um"+ext, two );
-		
-		createAssembledImageCSPAD( pixX_int_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixX_int"+ext, two );
-		
-		createAssembledImageCSPAD( pixY_int_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixY_int"+ext, two );
-		
-		createAssembledImageCSPAD( pixX_pix_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixX_pix"+ext, two );
-		
-		createAssembledImageCSPAD( pixY_pix_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixY_pix"+ext, two );
-		
-		createAssembledImageCSPAD( pixX_q_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixX_q"+ext, two );
-		
-		createAssembledImageCSPAD( pixY_q_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixY_q"+ext, two );
-		
-		createAssembledImageCSPAD( pixTwoTheta_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixTwoTheta"+ext, two );
-		
-		createAssembledImageCSPAD( pixPhi_sp.get(), pixX_int_sp.get(), pixY_int_sp.get(), two );
-		io->writeToFile( p_outputPrefix+"_pixPhi"+ext, two );
-		
-		delete two;
-		delete io;
-	}
+	evt.put( p_pixX_um_sp, IDSTRING_PX_X_um);
+	evt.put( p_pixY_um_sp, IDSTRING_PX_Y_um);
+	evt.put( p_pixX_int_sp, IDSTRING_PX_X_int);
+	evt.put( p_pixY_int_sp, IDSTRING_PX_Y_int);
+	evt.put( p_pixX_pix_sp, IDSTRING_PX_X_pix);
+	evt.put( p_pixY_pix_sp, IDSTRING_PX_Y_pix);
+	evt.put( p_pixX_q_sp, IDSTRING_PX_X_q);
+	evt.put( p_pixY_q_sp, IDSTRING_PX_Y_q);
+	evt.put( p_pixTwoTheta_sp, IDSTRING_PX_TWOTHETA);
+	evt.put( p_pixPhi_sp, IDSTRING_PX_PHI);	
 }
 
 
@@ -528,36 +324,41 @@ discriminate::event(Event& evt, Env& env)
 	}
 	
 	shared_ptr<EventId> eventId = evt.get();
-	MsgLog(name(), debug, "event ID: " << *eventId);
-
-	std::list<EventKey> keys = evt.keys();
-	MsgLog(name(), debug, "------" << keys.size() << " keys in event------");
-	for ( std::list<EventKey>::iterator it = keys.begin(); it != keys.end(); it++ ){
-		string thiskey = it->key();
-		Pds::Src thissrc = it->src();
-		string thissrcstr = "";
-		MsgLog(name(), debug, "key: '" << thiskey << "', src: '" << thissrcstr << "'" );
-	}
+	MsgLog(name(), trace, "event ID: " << *eventId);
 	
-	//compile a list of PVs that need to be read out for each event 
-	// (works, but commented out since it's not needed right now)
-//	vector<string> eventPVs;						// vector for list of PVs
-//	eventPVs.push_back("BEAM:LCLS:ELEC:Q");
-//	
-//	vector<double> eventVals;						// vector for corresponding values
-//	eventVals.assign(eventPVs.size(), 0.);			// set all to zero
-//	
-//	for (unsigned int i = 0; i < eventPVs.size(); i++){
-//		try{
-//			eventVals.at(i) = env.epicsStore().value(eventPVs.at(i));
-//			MsgLog(name(), info, eventPVs.at(i) << " = " << eventVals.at(i) );
-//		}catch(...){
-//			MsgLog(name(), warning, "PV " << eventPVs.at(i) << " doesn't exist." );
-//		}
-//	}
-
 	ostringstream evtinfo;
 	evtinfo <<  "evt #" << p_count << ", ";
+	
+	//check, if relevant event PVs have changed
+	map<string,bool> changed;
+	for (map<string,string>::iterator it = p_pvNames.begin(); it != p_pvNames.end(); it++){
+		double prev_val = p_pvValue[it->first];
+		try{
+			p_pvValue[it->first] = env.epicsStore().value(it->second);
+			p_pvValid[it->first] = true;
+		}catch(...){
+			p_pvValid[it->first] = false;
+		}
+		
+		if (p_pvValue[it->first] != prev_val){
+			MsgLog(name(), trace, "PV value changed in " << it->first 
+				<< ", from " << prev_val << " to " << p_pvValue[it->first] );
+			changed[it->first] = true;
+		}else{
+			changed[it->first] = false;
+		}
+	}
+	
+	if(changed[pvDetPos] || changed[pvLambda]){
+		//recalculate the pixel vectors
+		MsgLog(name(), info, "PV for detector position or wavelength changed in this event");
+		MsgLog(name(), warning, "\n"
+			<< "\n=================================="
+			<< "\n=== RECALCULATING PIXEL ARRAYS ==="
+			<< "\n==================================" 
+			<< "\n");
+		makePixelArrays();
+	}
 
 	std::ostringstream osst;
 //	osst << "t" << eventId->time();
@@ -699,8 +500,12 @@ discriminate::endJob(Event& evt, Env& env)
 		<< ", hits: " << p_hitcount 
 		<< ", skipped: " << p_skipcount 
 		<< ", hitrate: " << p_hitcount/(double)p_count * 100 << "%." );
-
-	MsgLog(name(), debug, "---complete histogram of averaged data---\n" << p_sum_sp->getHistogramASCII(50) );
+	
+	if (p_makePixelArrays_count > 1){
+		MsgLog(name(), info, "pixel arrays had to be recalculated " << p_makePixelArrays_count-1 << " times.");
+	}
+	
+	MsgLog(name(), trace, "---complete histogram of averaged data---\n" << p_sum_sp->getHistogramASCII(50) );
 		
 	arraydata *hits = new arraydata(p_hitInt);
 	MsgLog(name(), info, "\n ------hit intensity histogram------\n" << hits->getHistogramASCII(30) );
@@ -708,5 +513,217 @@ discriminate::endJob(Event& evt, Env& env)
 }
 
 
+/// ------------------------------------------------------------------------------------------------
+void
+discriminate::makePixelArrays(){
+	MsgLog(name(), info, "Calculating pixel position arrays");
+
+	//determine detector distance from p_detOffset and the PV value for the detector stage
+	if (p_pvValid[pvDetPos]){
+		p_detDistance = p_detOffset + p_pvValue[pvDetPos];
+	}else{
+		MsgLog(name(), error, "could not get PV for det pos");
+	}
+	
+	//get the wavelength from PV
+	double k = 0.;
+	if (p_pvValid[pvLambda] ){
+		p_lambda = p_pvValue[pvLambda];
+		k = 2*M_PI/p_lambda;								//in units of inv. nanometers
+	}else{
+		MsgLog(name(), error, "could not get PV for lambda");
+	}
+	
+	MsgLog(name(), info, "------ PV-derived quantities ------" );
+	MsgLog(name(), info, "detDistance = " << p_detDistance << " mm");				
+	MsgLog(name(), info, "k = " << k << " nm^-1");
+
+	/*---read calibration information arrays---
+	 *---possibly take some of this out if not needed and memory is needed
+	 *
+	 * IMPORTANT! After correspondence with Mikhail Dubrovin, it is
+	 * clear that in the class CSPadPixCoords, the coordinate system is adapted
+	 * so that it is the same as used in many graphical applications 
+	 * (e.g. python's matplotlib.imshow) that plots 2D matrices. This means that:
+	 * - the 1st ascending row-index is for the X-coordinate, and is
+	 *   accessed through getPixCoorArrX()
+	 * - the 2nd ascending column-index is for the Y-coordinate, and is
+	 *   accessed through getPixCoorArrY()
+	 * - the origin of this matrix coordinate system is located in the 
+	 *	 top left corner, as it should be for matrix element a(1,1)
+	 * - the X-axis is directed downward from a(1,1) to a(n,1)
+	 * - the Y-axis is directed to the right from a(1,1) to a(1,n)
+	 *
+	 *		=> getPixCoorArrX() corresponds to the (-Y)-axis in the CXI coordinate system
+	 *
+	 *		=> getPixCoorArrY() corresponds to the (+X)-axis in the CXI coordinate system
+	 */
+	// in microns
+	p_pixX_um_sp = shared_ptr<array1D>( new array1D( m_pix_coords_cspad->getPixCoorArrY_um(), nMaxTotalPx) );
+	p_pixY_um_sp = shared_ptr<array1D> ( new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx) );
+	
+	// in pixel index (integer pixel position only)
+	p_pixX_int_sp = shared_ptr<array1D>( new array1D( m_pix_coords_cspad->getPixCoorArrY_int(), nMaxTotalPx) );
+	p_pixY_int_sp = shared_ptr<array1D>( new array1D( m_pix_coords_cspad->getPixCoorArrX_int(), nMaxTotalPx) );
+	
+	// in pix (pixel index, including fraction)
+	p_pixX_pix_sp = shared_ptr<array1D>( new array1D( m_pix_coords_cspad->getPixCoorArrY_pix(), nMaxTotalPx) );
+	p_pixY_pix_sp = shared_ptr<array1D>( new array1D( m_pix_coords_cspad->getPixCoorArrX_pix(), nMaxTotalPx) );
+
+	// q-value vectors (inverse nanometers)
+	p_pixX_q_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
+	p_pixY_q_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
+	
+	// angle vectors (radians)
+	p_pixTwoTheta_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
+	p_pixPhi_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );	
+	
+					
+	MsgLog(name(), debug, "------read pixel arrays from calib data------");	
+	MsgLog(name(), debug, "PixCoorArrX_um  min: " << p_pixX_um_sp->calcMin()  << ", max: " << p_pixX_um_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrY_um  min: " << p_pixY_um_sp->calcMin()  << ", max: " << p_pixY_um_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrX_int min: " << p_pixX_int_sp->calcMin() << ", max: " << p_pixX_int_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrY_int min: " << p_pixY_int_sp->calcMin() << ", max: " << p_pixY_int_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrX_pix min: " << p_pixX_pix_sp->calcMin() << ", max: " << p_pixX_pix_sp->calcMax() );
+	MsgLog(name(), debug, "PixCoorArrY_pix min: " << p_pixY_pix_sp->calcMin() << ", max: " << p_pixY_pix_sp->calcMax() );
+	
+	//shift pixel arrays to be centered around incoming beam at (0, 0)
+	//this only works exactly, when the beam was exactly centered in the CSPAD
+	//otherwise, use manual correction of shiftX & shiftY below
+	double shift_X_um = (p_pixX_um_sp->calcMin()+p_pixX_um_sp->calcMax())/2;
+	double shift_Y_um = (p_pixY_um_sp->calcMin()+p_pixY_um_sp->calcMax())/2;
+	double shift_X_int = (p_pixX_int_sp->calcMin()+p_pixX_int_sp->calcMax())/2;
+	double shift_Y_int = (p_pixY_int_sp->calcMin()+p_pixY_int_sp->calcMax())/2;
+	double shift_X_pix = (p_pixX_pix_sp->calcMin()+p_pixX_pix_sp->calcMax())/2;
+	double shift_Y_pix = (p_pixY_pix_sp->calcMin()+p_pixY_pix_sp->calcMax())/2;
+	
+	if (p_useShift){
+		//pixel size values estimated from the read out arrays above, seems about right
+		const double pixelSizeXY_um = m_cspad_calibpar->getColSize_um();		// == getRowSize_um(), square pixels (luckily)
+		shift_X_um = p_shiftX * pixelSizeXY_um;
+		shift_Y_um = p_shiftX * pixelSizeXY_um;
+		shift_X_int = p_shiftX;
+		shift_Y_int = p_shiftY;
+		shift_X_pix = p_shiftX;
+		shift_Y_pix = p_shiftY;
+	}
+	
+	p_pixX_um_sp->subtractValue( shift_X_um );
+	p_pixY_um_sp->subtractValue( shift_Y_um );
+	p_pixX_int_sp->subtractValue( shift_X_int );
+	p_pixY_int_sp->subtractValue( shift_Y_int );
+	p_pixX_pix_sp->subtractValue( shift_X_pix );
+	p_pixY_pix_sp->subtractValue( shift_Y_pix );
+	
+	p_pixY_um_sp->multiplyByValue( -1.0 );
+	p_pixY_int_sp->multiplyByValue( -1.0 );
+	p_pixY_pix_sp->multiplyByValue( -1.0 );
+	
+	
+	//fill q-vectors		
+	for (unsigned int i = 0; i < p_pixX_q_sp->size(); i++){
+		double x_um = p_pixX_um_sp->get(i);
+		double y_um = p_pixY_um_sp->get(i);
+		double r_um = sqrt( x_um*x_um + y_um*y_um );
+		double twoTheta = atan( r_um/1000.0/p_detDistance );
+		double phi = atan2( y_um, x_um );
+		if (phi < 0) { // make sure the angle is between 0 and 2PI
+			phi += 2*M_PI;
+		}
+		p_pixTwoTheta_sp->set(i, twoTheta);
+		p_pixPhi_sp->set(i, phi);
+		p_pixX_q_sp->set(i, 2*k * sin(twoTheta/2) * cos(phi) );
+		p_pixY_q_sp->set(i, 2*k * sin(twoTheta/2) * sin(phi) );
+	}
+	
+	MsgLog(name(), info, "------shifted pixels arrays------");	
+	MsgLog(name(), info, "PixCoorArrX_um  min: " << p_pixX_um_sp->calcMin()  << ", max: " << p_pixX_um_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_um  min: " << p_pixY_um_sp->calcMin()  << ", max: " << p_pixY_um_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrX_int min: " << p_pixX_int_sp->calcMin() << ", max: " << p_pixX_int_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_int min: " << p_pixY_int_sp->calcMin() << ", max: " << p_pixY_int_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrX_pix min: " << p_pixX_pix_sp->calcMin() << ", max: " << p_pixX_pix_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_pix min: " << p_pixY_pix_sp->calcMin() << ", max: " << p_pixY_pix_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrX_q   min: " << p_pixX_q_sp->calcMin()   << ", max: " << p_pixX_q_sp->calcMax() );
+	MsgLog(name(), info, "PixCoorArrY_q   min: " << p_pixY_q_sp->calcMin()   << ", max: " << p_pixY_q_sp->calcMax() );
+	MsgLog(name(), info, "PixTwoTheta     min: " << p_pixTwoTheta_sp->calcMin()   << ", max: " << p_pixTwoTheta_sp->calcMax() );
+	MsgLog(name(), info, "PixPhi          min: " << p_pixPhi_sp->calcMin()   << ", max: " << p_pixPhi_sp->calcMax() );
+	
+	if (p_pixelVectorOutput){
+		arraydataIO *io = new arraydataIO();
+		string ext = ".h5";
+		array2D *two = 0;
+		
+		//raw images
+		ext = "_raw.h5";
+		
+		createRawImageCSPAD( p_pixX_um_sp.get(), two );		
+		io->writeToFile( p_outputPrefix+"_pixX_um"+ext, two );
+		
+		createRawImageCSPAD( p_pixY_um_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_um"+ext, two );
+		
+		createRawImageCSPAD( p_pixX_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixX_int"+ext, two );
+		
+		createRawImageCSPAD( p_pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_int"+ext, two );
+		
+		createRawImageCSPAD( p_pixX_pix_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixX_p_pix"+ext, two );
+		
+		createRawImageCSPAD( p_pixY_pix_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_pix"+ext, two );
+		
+		createRawImageCSPAD( p_pixX_q_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixX_q"+ext, two );
+		
+		createRawImageCSPAD( p_pixY_q_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_q"+ext, two );
+		
+		createRawImageCSPAD( p_pixTwoTheta_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixTwoTheta"+ext, two );
+		
+		createRawImageCSPAD( p_pixPhi_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixPhi"+ext, two );
+		
+		//assembled images
+		ext = "_asm.h5";
+
+		createAssembledImageCSPAD( p_pixX_um_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), two );		
+		io->writeToFile( p_outputPrefix+"_pixX_um"+ext, two );
+		
+		createAssembledImageCSPAD( p_pixY_um_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_um"+ext, two );
+		
+		createAssembledImageCSPAD( p_pixX_int_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixX_int"+ext, two );
+		
+		createAssembledImageCSPAD( p_pixY_int_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_int"+ext, two );
+		
+		createAssembledImageCSPAD( p_pixX_pix_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixX_pix"+ext, two );
+		
+		createAssembledImageCSPAD( p_pixY_pix_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_pix"+ext, two );
+		
+		createAssembledImageCSPAD( p_pixX_q_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixX_q"+ext, two );
+		
+		createAssembledImageCSPAD( p_pixY_q_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixY_q"+ext, two );
+		
+		createAssembledImageCSPAD( p_pixTwoTheta_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixTwoTheta"+ext, two );
+		
+		createAssembledImageCSPAD( p_pixPhi_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), two );
+		io->writeToFile( p_outputPrefix+"_pixPhi"+ext, two );
+		
+		delete two;
+		delete io;
+	}//if vector output
+	
+	p_makePixelArrays_count++;
+}
 
 } // namespace kitty
