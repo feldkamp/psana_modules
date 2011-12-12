@@ -78,10 +78,7 @@ discriminate::discriminate (const std::string& name)
 	, p_shiftY(0)
 	, p_detOffset(0)
 	, p_detDistance(0)
-	, p_pvNames()
-	, p_pvDesc()
-	, p_pvValue()
-	, p_pvValid()
+	, p_pvs()
 	, p_sum_sp()
 	, p_hitInt()
 	, p_pixX_um_sp()
@@ -170,35 +167,43 @@ discriminate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), debug, "nMaxTotalPx = " << nMaxTotalPx ); 
 	
 	
-	p_pvNames[pvDetPos] = "CXI:DS1:MMS:06";
-	p_pvDesc[pvDetPos] = "detector position";
+	
+	p_pvs[pvDetPos].name = "CXI:DS1:MMS:06";
+	p_pvs[pvDetPos].desc = "detector position";
 
-	p_pvNames[pvLambda] = "SIOC:SYS0:ML00:AO192";
-	p_pvDesc[pvLambda] = "wavelength [nm]";
+	p_pvs[pvLambda].name = "SIOC:SYS0:ML00:AO192";
+	p_pvs[pvLambda].desc = "wavelength [nm]";
 		
-	p_pvNames[pvElEnergy] = "BEND:DMP1:400:BDES";
-	p_pvDesc[pvElEnergy] = "electron beam energy";
+	p_pvs[pvElEnergy].name = "BEND:DMP1:400:BDES";
+	p_pvs[pvElEnergy].desc = "electron beam energy";
 	
-	p_pvNames[pvNElectrons] = "BPMS:DMP1:199:TMIT1H";
-	p_pvDesc[pvNElectrons] = "particle N_electrons";
+	p_pvs[pvNElectrons].name = "BPMS:DMP1:199:TMIT1H";
+	p_pvs[pvNElectrons].desc = "particle N_electrons";
 
-	p_pvNames[pvRepRate] = "EVNT:SYS0:1:LCLSBEAMRATE";
-	p_pvDesc[pvRepRate] = "LCLS repetition rate [Hz]";
+	p_pvs[pvRepRate].name = "EVNT:SYS0:1:LCLSBEAMRATE";
+	p_pvs[pvRepRate].desc = "LCLS repetition rate [Hz]";
 		
-	p_pvNames[pvPeakCurrent] = "SIOC:SYS0:ML00:AO195";
-	p_pvDesc[pvPeakCurrent] = "peak current after second bunch compressor";
+	p_pvs[pvPeakCurrent].name = "SIOC:SYS0:ML00:AO195";
+	p_pvs[pvPeakCurrent].desc = "peak current after second bunch compressor";
 	
-	p_pvNames[pvPulseLength] = "SIOC:SYS0:ML00:AO820";
-	p_pvDesc[pvPulseLength] = "pulse length";
+	p_pvs[pvPulseLength].name = "SIOC:SYS0:ML00:AO820";
+	p_pvs[pvPulseLength].desc = "pulse length";
 	
-	p_pvNames[pvEbeamLoss] = "SIOC:SYS0:ML00:AO569";
-	p_pvDesc[pvEbeamLoss] = "ebeam energy loss converted to photon mJ";
+	p_pvs[pvEbeamLoss].name = "SIOC:SYS0:ML00:AO569";
+	p_pvs[pvEbeamLoss].desc = "ebeam energy loss converted to photon mJ";
 	
-	p_pvNames[pvNumPhotons] = "SIOC:SYS0:ML00:AO580";
-	p_pvDesc[pvNumPhotons] = "calculated number of photons";
+	p_pvs[pvNumPhotons].name = "SIOC:SYS0:ML00:AO580";
+	p_pvs[pvNumPhotons].desc = "calculated number of photons";
 	
-	p_pvNames[pvPhotonEnergy] = "SIOC:SYS0:ML00:AO541";
-	p_pvDesc[pvPhotonEnergy] = "photon beam energy [eV]";
+	p_pvs[pvPhotonEnergy].name = "SIOC:SYS0:ML00:AO541";
+	p_pvs[pvPhotonEnergy].desc = "photon beam energy [eV]";
+	
+	//initialize the value and valid fields of the pv structs in the map
+	for (map<string,pv>::iterator it = p_pvs.begin(); it != p_pvs.end(); it++){
+		it->second.value = 0.;
+		it->second.valid = false;
+		it->second.changed = false;
+	} 
 
 }
 
@@ -224,19 +229,19 @@ discriminate::beginRun(Event& evt, Env& env)
 	
 	
 	//try to get the PV values
-	map<string,string>::iterator it;
+	map<string,pv>::iterator it;
 	ostringstream osst;
-	for (it = p_pvNames.begin(); it != p_pvNames.end(); it++){
-		osst << setw(20) << it->first << " " << setw(26) << it->second; 
+	for (it = p_pvs.begin(); it != p_pvs.end(); it++){
+		osst << setw(20) << it->first << " " << setw(26) << it->second.name; 
 		try{
-			p_pvValue[it->first] = env.epicsStore().value(it->second);
-			p_pvValid[it->first] = true;
-			osst << " = " << setw(12) << p_pvValue[it->first];
+			it->second.value = env.epicsStore().value(it->second.name);
+			it->second.valid = true;
+			osst << " = " << setw(12) << it->second.value;
 		}catch(...){
-			p_pvValid[it->first] = false;
+			it->second.valid = false;
 			osst << setw(12) << " ---- ";
 		}
-		osst << " (" << p_pvDesc[it->first] << ")" << endl;
+		osst << " (" << it->second.desc << ")" << endl;
 	}
 	MsgLog(name(), info, "------list of read out PVs------\n" << osst.str() );
 	
@@ -330,26 +335,25 @@ discriminate::event(Event& evt, Env& env)
 	evtinfo <<  "evt #" << p_count << ", ";
 	
 	//check, if relevant event PVs have changed
-	map<string,bool> changed;
-	for (map<string,string>::iterator it = p_pvNames.begin(); it != p_pvNames.end(); it++){
-		double prev_val = p_pvValue[it->first];
+	for (map<string,pv>::iterator it = p_pvs.begin(); it != p_pvs.end(); it++){
+		double prev_val = it->second.value;
 		try{
-			p_pvValue[it->first] = env.epicsStore().value(it->second);
-			p_pvValid[it->first] = true;
+			it->second.value = env.epicsStore().value(it->second.name);
+			it->second.valid = true;
 		}catch(...){
-			p_pvValid[it->first] = false;
+			it->second.valid = false;
 		}
 		
-		if (p_pvValue[it->first] != prev_val){
+		if (it->second.value != prev_val){
 			MsgLog(name(), trace, "PV value changed in " << it->first 
-				<< ", from " << prev_val << " to " << p_pvValue[it->first] );
-			changed[it->first] = true;
+				<< ", from " << prev_val << " to " << it->second.value );
+			it->second.changed = true;
 		}else{
-			changed[it->first] = false;
+			it->second.changed = false;
 		}
 	}
 	
-	if(changed[pvDetPos] || changed[pvLambda]){
+	if(p_pvs[pvDetPos].changed || p_pvs[pvLambda].changed){
 		//recalculate the pixel vectors
 		MsgLog(name(), info, "PV for detector position or wavelength changed in this event");
 		MsgLog(name(), warning, "\n"
@@ -519,16 +523,16 @@ discriminate::makePixelArrays(){
 	MsgLog(name(), info, "Calculating pixel position arrays");
 
 	//determine detector distance from p_detOffset and the PV value for the detector stage
-	if (p_pvValid[pvDetPos]){
-		p_detDistance = p_detOffset + p_pvValue[pvDetPos];
+	if (p_pvs[pvDetPos].valid){
+		p_detDistance = p_detOffset + p_pvs[pvDetPos].value;
 	}else{
 		MsgLog(name(), error, "could not get PV for det pos");
 	}
 	
 	//get the wavelength from PV
 	double k = 0.;
-	if (p_pvValid[pvLambda] ){
-		p_lambda = p_pvValue[pvLambda];
+	if (p_pvs[pvLambda].valid ){
+		p_lambda = p_pvs[pvLambda].value;
 		k = 2*M_PI/p_lambda;								//in units of inv. nanometers
 	}else{
 		MsgLog(name(), error, "could not get PV for lambda");

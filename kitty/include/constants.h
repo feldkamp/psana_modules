@@ -55,6 +55,14 @@ namespace kitty {
 	const string pvNumPhotons = "pvNumPhotons";
 	const string pvPhotonEnergy = "pvPhotonEnergy";
 	
+	typedef struct {
+		string name;
+		string desc;
+		double value;
+		bool valid;
+		bool changed;
+	} pv;
+	
 }//namespace
 
 #define WAIT std::cerr << "continue by pressing the <return> key..."; std::cin.get();

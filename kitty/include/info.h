@@ -26,7 +26,7 @@
 //-------------------------------
 
 //headers must be available through symbolic links or copies in the kitty include directory
-
+#include "kitty/constants.h"
 
 //------------------------------------
 // Collaborating Class Declarations --
@@ -98,9 +98,7 @@ private:
 	
 	std::ofstream fout;
 	
-	std::map<std::string,std::string> p_pvNames;					// container for list of PVs
-	std::map<std::string,std::string> p_pvDesc;						// container for PV description
-
+	std::map<std::string, pv> p_pvs;					// container for list of PVs
 
 };
 

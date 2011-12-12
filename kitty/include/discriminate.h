@@ -26,6 +26,7 @@
 //-------------------------------
 
 //headers must be available through symbolic links or copies in the kitty include directory
+#include <kitty/constants.h>
 #include <kitty/arrayclasses.h>
 #include <kitty/arraydataIO.h>
 
@@ -126,10 +127,7 @@ private:
 	double p_detDistance;			// detector distance from sample
 	double p_lambda;				// wavelength
 	
-	std::map<std::string,std::string> p_pvNames;					// container for list of PVs
-	std::map<std::string,std::string> p_pvDesc;						// container for PV description
-	std::map<std::string,double> p_pvValue;							// container for PV value
-	std::map<std::string,bool> p_pvValid;							// container for PV validity
+	std::map<std::string,pv> p_pvs;					// container for list of PVs
 	
 	shared_ptr<array1D> p_sum_sp;	// keep a running sum of all events
 

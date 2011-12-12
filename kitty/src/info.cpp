@@ -61,8 +61,7 @@ info::info (const std::string& name)
 	, p_count(0)
 	, p_stopflag(false)
 	, fout()
-	, p_pvNames()
-	, p_pvDesc()
+	, p_pvs()
 {
 	p_outputPrefix				= configStr("outputPrefix", 		"out");
 }
@@ -82,47 +81,53 @@ info::beginJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug, "beginJob()" );
 	
-	p_pvNames[pvDetPos] = "CXI:DS1:MMS:06";
-	p_pvDesc[pvDetPos] = "detector position";
+	p_pvs[pvDetPos].name = "CXI:DS1:MMS:06";
+	p_pvs[pvDetPos].desc = "detector position";
 
-	p_pvNames[pvLambda] = "SIOC:SYS0:ML00:AO192";
-	p_pvDesc[pvLambda] = "wavelength [nm]";
+	p_pvs[pvLambda].name = "SIOC:SYS0:ML00:AO192";
+	p_pvs[pvLambda].desc = "wavelength [nm]";
 		
-	p_pvNames[pvElEnergy] = "BEND:DMP1:400:BDES";
-	p_pvDesc[pvElEnergy] = "electron beam energy";
+	p_pvs[pvElEnergy].name = "BEND:DMP1:400:BDES";
+	p_pvs[pvElEnergy].desc = "electron beam energy";
 	
-	p_pvNames[pvNElectrons] = "BPMS:DMP1:199:TMIT1H";
-	p_pvDesc[pvNElectrons] = "particle N_electrons";
+	p_pvs[pvNElectrons].name = "BPMS:DMP1:199:TMIT1H";
+	p_pvs[pvNElectrons].desc = "particle N_electrons";
 
-	p_pvNames[pvRepRate] = "EVNT:SYS0:1:LCLSBEAMRATE";
-	p_pvDesc[pvRepRate] = "LCLS repetition rate [Hz]";
+	p_pvs[pvRepRate].name = "EVNT:SYS0:1:LCLSBEAMRATE";
+	p_pvs[pvRepRate].desc = "LCLS repetition rate [Hz]";
 		
-	p_pvNames[pvPeakCurrent] = "SIOC:SYS0:ML00:AO195";
-	p_pvDesc[pvPeakCurrent] = "peak current after second bunch compressor";
+	p_pvs[pvPeakCurrent].name = "SIOC:SYS0:ML00:AO195";
+	p_pvs[pvPeakCurrent].desc = "peak current after second bunch compressor";
 	
-	p_pvNames[pvPulseLength] = "SIOC:SYS0:ML00:AO820";
-	p_pvDesc[pvPulseLength] = "pulse length";
+	p_pvs[pvPulseLength].name = "SIOC:SYS0:ML00:AO820";
+	p_pvs[pvPulseLength].desc = "pulse length";
 	
-	p_pvNames[pvEbeamLoss] = "SIOC:SYS0:ML00:AO569";
-	p_pvDesc[pvEbeamLoss] = "ebeam energy loss converted to photon mJ";
+	p_pvs[pvEbeamLoss].name = "SIOC:SYS0:ML00:AO569";
+	p_pvs[pvEbeamLoss].desc = "ebeam energy loss converted to photon mJ";
 	
-	p_pvNames[pvNumPhotons] = "SIOC:SYS0:ML00:AO580";
-	p_pvDesc[pvNumPhotons] = "calculated number of photons";
+	p_pvs[pvNumPhotons].name = "SIOC:SYS0:ML00:AO580";
+	p_pvs[pvNumPhotons].desc = "calculated number of photons";
 	
-	p_pvNames[pvPhotonEnergy] = "SIOC:SYS0:ML00:AO541";
-	p_pvDesc[pvPhotonEnergy] = "photon beam energy [eV]";
+	p_pvs[pvPhotonEnergy].name = "SIOC:SYS0:ML00:AO541";
+	p_pvs[pvPhotonEnergy].desc = "photon beam energy [eV]";
 
+	//initialize the value and valid fields of the pv structs in the map
+	for (map<string,pv>::iterator it = p_pvs.begin(); it != p_pvs.end(); it++){
+		it->second.value = 0.;
+		it->second.valid = false;
+		it->second.changed = false;
+	} 
 
 	ostringstream header;
 	header << "run ";
-	map<string,string>::iterator it;
-	for(it = p_pvNames.begin(); it != p_pvNames.end(); it++){
-		header << it->second << " ";
+	map<string,pv>::iterator it;
+	for(it = p_pvs.begin(); it != p_pvs.end(); it++){
+		header << it->second.name << " ";
 	}
 	header << endl;
 	header << "run ";
-	for(it = p_pvDesc.begin(); it != p_pvDesc.end(); it++){
-		header << it->second << " ";
+	for(it = p_pvs.begin(); it != p_pvs.end(); it++){
+		header << it->second.desc << " ";
 	}
 	header << endl;
 			
@@ -173,31 +178,27 @@ info::beginRun(Event& evt, Env& env)
 			}
 		}
 	}
-	
 
-	map<string,double> pvValue;						// vector for corresponding values
-	map<string,bool> pvValid;						// keep track of the validity of this PV
-	
 	//try to get the PV values
-	map<string,string>::iterator it;
+	map<string,pv>::iterator it;
 	ostringstream osst;
-	for (it = p_pvNames.begin(); it != p_pvNames.end(); it++){
-		osst << setw(20) << it->first << " " << setw(26) << it->second; 
+	for (it = p_pvs.begin(); it != p_pvs.end(); it++){
+		osst << setw(20) << it->first << " " << setw(26) << it->second.name; 
 		try{
-			pvValue[it->first] = env.epicsStore().value(it->second);
-			pvValid[it->first] = true;
-			osst << " = " << setw(12) << pvValue[it->first];
+			it->second.value = env.epicsStore().value(it->second.name);
+			it->second.valid = true;
+			osst << " = " << setw(12) << it->second.value;
 		}catch(...){
-			pvValid[it->first] = false;
+			it->second.valid = false;
 			osst << setw(12) << " ---- ";
 		}
-		osst << " (" << p_pvDesc[it->first] << ")" << endl;
+		osst << " (" << it->second.desc << ")" << endl;
 	}
 	
-	MsgLog(name(), info, "------list of read out PVs------\n" << osst.str() );
+	MsgLog(name(), info, "------list of read out PVs in beginRun------\n" << osst.str() );
 	//use the values
 	MsgLog(name(), info, "run no " << runNumber);
-	for (it = p_pvNames.begin(); it != p_pvNames.end(); it++){
+	for (it = p_pvs.begin(); it != p_pvs.end(); it++){
 		runinfo << it->first << " ";
 	}
 	runinfo << endl;
@@ -228,11 +229,6 @@ info::beginRun(Event& evt, Env& env)
 		it->print(out);
 		MsgLog(name(), info, out.str() << ", key: '" << it->key() << "'");
 	}
-	
-
-
-
-	
 }
 
 
@@ -258,24 +254,22 @@ info::event(Event& evt, Env& env)
 		return;
 	}
 
-	map<string,double> pvValue;						// vector for corresponding values
-	map<string,bool> pvValid;						// keep track of the validity of this PV
-	
 	//try to get the PV values
-	map<string,string>::iterator it;
+	map<string,pv>::iterator it;
 	ostringstream osst;
-	for (it = p_pvNames.begin(); it != p_pvNames.end(); it++){
-		osst << setw(20) << it->first << " " << setw(26) << it->second; 
+	for (it = p_pvs.begin(); it != p_pvs.end(); it++){
+		osst << setw(20) << it->first << " " << setw(26) << it->second.name; 
 		try{
-			pvValue[it->first] = env.epicsStore().value(it->second);
-			pvValid[it->first] = true;
-			osst << " = " << setw(12) << pvValue[it->first];
+			it->second.value = env.epicsStore().value(it->second.name);
+			it->second.valid = true;
+			osst << " = " << setw(12) << it->second.value;
 		}catch(...){
-			pvValid[it->first] = false;
+			it->second.valid = false;
 			osst << setw(12) << " ---- ";
 		}
-		osst << " (" << p_pvDesc[it->first] << ")" << endl;
+		osst << " (" << it->second.desc << ")" << endl;
 	}
+	
 	MsgLog(name(), info, "------list of read out PVs in event #" << p_count << "------\n" << osst.str() );
 		
 	//compile a list of PVs that need to be read out for each event 
