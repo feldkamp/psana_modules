@@ -31,8 +31,6 @@
 #include "kitty/util.h"
 using ns_cspad_util::create1DFromRawImageCSPAD;
 
-#include "kitty/crosscorrelator.h"
-
 //-----------------------------------------------------------------------
 // Local Macros, Typedefs, Structures, Unions and Forward Declarations --
 //-----------------------------------------------------------------------
@@ -73,11 +71,11 @@ correlate::correlate (const std::string& name)
 	, p_pix1_sp()
 	, p_pix2_sp()
 	, p_mask(0)
-	, p_LUT(0)
 	, p_polarAvg_sp()
 	, p_corrAvg_sp()
 	, p_qAvg_sp()
 	, p_iAvg_sp()
+	, p_cc(0)
 	, p_count(0)
 {
 	p_tifOut 			= config   ("tifOut", 				0);
@@ -112,7 +110,7 @@ correlate::~correlate ()
 {
 	delete io;
 	delete p_mask;
-	delete p_LUT;
+	delete p_cc;
 }
 
 
@@ -172,20 +170,48 @@ correlate::beginRun(Event& evt, Env& env)
 		MsgLog(name(), warning, "could not get data from pixX(addr=" << p_pix1_sp.get() << ") or pixY(addr=" << p_pix2_sp.get() << ")" );
 	}
 
-	//before everything starts, create a dummy CrossCorrelator to set up some things
-	CrossCorrelator *dummy_cc = new CrossCorrelator(p_pix1_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1);
-	p_nLag = dummy_cc->nLag();
-	if ( p_alg == 2 || p_alg == 4 ){
-		//prepare lookup table once here, so it doesn't have to be done every time
-		MsgLog(name(), info, "creating lookup table");
-		dummy_cc->createLookupTable(p_LUTy, p_LUTx);
-		delete p_LUT;
-		p_LUT = new array2D( *(dummy_cc->lookupTable()) );
-		//io->writeToEDF( "LUT.edf", p_LUT ); //write to disk for debugging
-	}
-	delete dummy_cc;
+	//create a CrossCorrelator object (whose data will be replaced in every event())
+	//take care of everything that needs to be done only once here
+	delete p_cc;
+	p_cc = new CrossCorrelator(p_pix1_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1);
+	p_nLag = p_cc->nLag();
 	
-	//resize average-keeping arrays after p_nLag was set by the dummy cross-correlator
+	//set some properties of the cross correlator		
+	if (p_useMask) {			
+		p_cc->setMask( p_mask );
+		p_cc->setMaskEnable ( true );
+	}else{
+		p_cc->setMaskEnable( false );
+	}
+	
+	if (p_autoCorrelateOnly) {
+		p_cc->setXccaEnable( false );
+	}else{
+		p_cc->setXccaEnable( true );
+	}
+	
+	//check psana's debug level, set a debug flag for cc, if it's at least 'trace'
+	MsgLogger::MsgLogLevel lvl(MsgLogger::MsgLogLevel::trace);
+	if ( MsgLogger::MsgLogger().logging(lvl) ) {
+		p_cc->setDebug(1);
+	}
+	
+	//prepare lookup table, if necessary
+	if ( p_alg == 2 || p_alg == 4 ){
+		MsgLog(name(), info, "creating lookup table");
+		p_cc->createLookupTable(p_LUTy, p_LUTx);
+	}
+	
+	MsgLog(name(), info, "CrossCorrelator set up. "
+		<< " cc=" << p_cc
+		<< " mask=" << p_cc->mask()
+		<< " xccaEnable=" << p_cc->xccaEnable()
+		<< " nQ= " << p_cc->nQ()
+		<< " nPhi= " << p_cc->nPhi()
+		<< " nLag= " << p_cc->nLag()
+		);
+	
+	//size average-keeping arrays after p_nLag is known (from the cross-correlator)
 	p_polarAvg_sp = shared_ptr<array2D>( new array2D(p_nQ1,p_nPhi) );
 	p_corrAvg_sp = shared_ptr<array2D>( new array2D(p_nQ1,p_nLag) );
 	p_qAvg_sp = shared_ptr<array1D>( new array1D(p_nQ1) );
@@ -215,83 +241,69 @@ correlate::event(Event& evt, Env& env)
 	
 	if (data_sp){
 		MsgLog(name(), debug, "read event data of size " << data_sp->size() << " from ID string " << IDSTRING_CSPAD_DATA);
-		
-		//create cross correlator object that takes care of the computations
-		//the arguments that are passed to the constructor determine if calculations are 2D/3D and with/without mask
-		CrossCorrelator *cc = 0;
-		
-		if (p_autoCorrelateOnly) {
-			if (p_useMask) {											//auto-correlation 2D case, with mask
-				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
-			} else { 													//auto-correlation 2D case, no mask
-				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1 );
-			}
-		} else {
-			if (p_useMask){												//full cross-correlation 3D case, with mask
-				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
-			} else { 													//full cross-correlation 3D case, no mask
-				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1, p_nQ2);
-			}
-		}
-		
-		//check psana's debug level, set a debug flag for cc, if it's at least 'info'...
-		MsgLogger::MsgLogLevel lvl(MsgLogger::MsgLogLevel::info);
-		if ( MsgLogger::MsgLogger().logging(lvl) ) {
-			cc->setDebug(1);
-		}
-		
-		if (p_LUT){
-			cc->setLookupTable( p_LUT );
-		}else{
-			MsgLog(name(), debug, "no lookup table set (since it's not needed in this algorithm)");
-		}
+
+		//old version with new objects every time around
+//		if (p_autoCorrelateOnly) {
+//			if (p_useMask) {											//auto-correlation 2D case, with mask
+//				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
+//			} else { 													//auto-correlation 2D case, no mask
+//				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1 );
+//			}
+//		} else {
+//			if (p_useMask){												//full cross-correlation 3D case, with mask
+//				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
+//			} else { 													//full cross-correlation 3D case, no mask
+//				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1, p_nQ2);
+//			}
+//		}
 		
 		MsgLog(name(), info, "calling alg " << p_alg << ", startQ=" << p_startQ << ", stopQ=" << p_stopQ );
-		cc->run(p_startQ, p_stopQ, p_alg, true);
+		p_cc->setData( data_sp.get() );
+		p_cc->run(p_startQ, p_stopQ, p_alg);
 		
 		MsgLog(name(), debug, "updating running sums.");
-		p_polarAvg_sp->addArrayElementwise( cc->polar() );
-		p_corrAvg_sp->addArrayElementwise( cc->autoCorr() );
-		p_qAvg_sp->addArrayElementwise( cc->qAvg() );
-		p_iAvg_sp->addArrayElementwise( cc->iAvg() );
+		p_polarAvg_sp->addArrayElementwise( p_cc->polar() );
+		p_corrAvg_sp->addArrayElementwise( p_cc->autoCorr() );
+		p_qAvg_sp->addArrayElementwise( p_cc->qAvg() );
+		p_iAvg_sp->addArrayElementwise( p_cc->iAvg() );
 		
-		MsgLog(name(), debug, "cc->polar dims: rows,cols=(" << cc->polar()->dim1() << ", " << cc->polar()->dim2() << ")"  );
+		MsgLog(name(), debug, "cc->polar dims: rows,cols=(" << p_cc->polar()->dim1() << ", " << p_cc->polar()->dim2() << ")"  );
 		MsgLog(name(), debug, "p_polarAvg dims: rows,cols=(" << p_polarAvg_sp->dim1() << ", " << p_polarAvg_sp->dim2() << ")"  );
-		MsgLog(name(), debug, "cc->autoCorr dims: rows,cols=(" << cc->autoCorr()->dim1() << ", " << cc->autoCorr()->dim2() << ")"  );
+		MsgLog(name(), debug, "cc->autoCorr dims: rows,cols=(" << p_cc->autoCorr()->dim1() << ", " << p_cc->autoCorr()->dim2() << ")"  );
 		MsgLog(name(), debug, "p_corrAvg dims: rows,cols=(" << p_corrAvg_sp->dim1() << ", " << p_corrAvg_sp->dim2() << ")"  );
 		
-		if ( p_singleOutput ){
-			if ( !(p_count % p_singleOutput) ){
-				MsgLog(name(), debug, "writing (single event) files.");
-				if (p_h5Out){
-					string ext = ".h5";
-					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_xaca"+ext, cc->autoCorr() );
-					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_polar"+ext, cc->polar() );
-					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, cc->qAvg() );
-					io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, cc->iAvg() );			
-				}
-				if (p_edfOut){
-					string ext = ".edf";
-					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_xaca"+ext, cc->autoCorr() );
-					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_polar"+ext, cc->polar() );
-					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, cc->qAvg() );
-					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, cc->iAvg() );
-				}
-				if (p_tifOut){
-					string ext = ".tif";
-					io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_xaca"+ext, cc->autoCorr() );
-					io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_polar"+ext, cc->polar() );
-					//1D output not implemented just yet, using edf for the moment
-//					io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, cc->qAvg() );
-//					io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, cc->iAvg() );
-					ext = ".edf";
-					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, cc->qAvg() );
-					io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, cc->iAvg() );				
-				}
-			}//if no modulo
+		if ( p_singleOutput && !(p_count%p_singleOutput) ){
+			MsgLog(name(), debug, "writing (single event) files.");
+			if (p_h5Out){
+				string ext = ".h5";
+				io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_xaca"+ext, p_cc->autoCorr() );
+				io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_polar"+ext, p_cc->polar() );
+				io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, p_cc->qAvg() );
+				io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, p_cc->iAvg() );
+				
+				//some additional debugging output
+				//io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_fluct"+ext, p_cc->fluctuations() );
+				//io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_pxCnt"+ext, p_cc->pixelCount() );
+			}
+			if (p_edfOut){
+				string ext = ".edf";
+				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_xaca"+ext, p_cc->autoCorr() );
+				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_polar"+ext, p_cc->polar() );
+				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, p_cc->qAvg() );
+				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, p_cc->iAvg() );
+			}
+			if (p_tifOut){
+				string ext = ".tif";
+				io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_xaca"+ext, p_cc->autoCorr() );
+				io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_polar"+ext, p_cc->polar() );
+				//1D output not implemented just yet, using edf for the moment
+//					io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, p_cc->qAvg() );
+//					io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, p_cc->iAvg() );
+				ext = ".edf";
+				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_q"+ext, p_cc->qAvg() );
+				io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_i"+ext, p_cc->iAvg() );				
+			}
 		}//if singleout
-		
-		delete cc;
 		
 		p_count++;
 	}else{

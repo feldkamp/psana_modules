@@ -24,6 +24,7 @@
 //-------------------------------
 #include "kitty/arrayclasses.h"
 #include "kitty/arraydataIO.h"
+#include "kitty/crosscorrelator.h"
 
 //------------------------------------
 // Collaborating Class Declarations --
@@ -118,16 +119,15 @@ private:
 	
 	array1D *p_mask;
 
-	array2D *p_LUT;
-
 	shared_ptr<array2D> p_polarAvg_sp;
 	shared_ptr<array2D> p_corrAvg_sp;
 	
 	shared_ptr<array1D> p_qAvg_sp;
 	shared_ptr<array1D> p_iAvg_sp;
 	
+	CrossCorrelator *p_cc;
+	
 	int p_count;
-
 };
 
 } // namespace kitty
