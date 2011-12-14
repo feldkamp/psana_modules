@@ -435,9 +435,14 @@ discriminate::event(Event& evt, Env& env)
 		thresholdingAvg = raw1D->calcAvg();
 	}
 	
-	evtinfo << "avg:" << setw(8) << thresholdingAvg << ", threshold delta (" 
-			<< setw(8) << thresholdingAvg-p_lowerThreshold << "/"
-			<< setw(8) << thresholdingAvg-p_upperThreshold << ") ";
+	ios_base::fmtflags flags = evtinfo.flags();
+	evtinfo << right  
+			<< "avg:" << thresholdingAvg 
+			<< ", threshold delta (" << setprecision(3) << showpos 
+			<< thresholdingAvg-p_lowerThreshold << "/"
+			<< thresholdingAvg-p_upperThreshold << ") ";
+	evtinfo.flags(flags);
+			
 			
 	if ( thresholdingAvg <= p_lowerThreshold || thresholdingAvg >= p_upperThreshold ){
 		evtinfo << " xxxxx REJECT xxxxx";
