@@ -141,21 +141,27 @@ assemble::event(Event& evt, Env& env)
 		MsgLog(name(), debug, "read event data of size " << data_sp->size() );	
 		p_count++;	
 		
-		if ( p_singleOutput ){
-			array2D *assembled2D = 0;
-			int fail_asm = createAssembledImageCSPAD( data_sp.get(), p_pixX_sp.get(), p_pixY_sp.get(), assembled2D );
-			if ( !(p_count % p_singleOutput) ){
-				if (p_edfOut){
-					if (!fail_asm) io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_asm2D.edf", assembled2D );
-				}
-				if (p_h5Out){
-					if (!fail_asm) io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_asm2D.h5", assembled2D );
-				}
-				if (p_tifOut){
-					if (!fail_asm) io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_asm2D.tif", assembled2D );
-				}
-			}//if modulo 
-			delete assembled2D;
+		if ( p_singleOutput && !(p_count%p_singleOutput) ){
+			array2D *asm2D = 0;
+			array2D *raw2D = 0;
+			int fail_asm = createAssembledImageCSPAD( data_sp.get(), p_pixX_sp.get(), p_pixY_sp.get(), asm2D );
+			int fail_raw = createRawImageCSPAD( data_sp.get(), raw2D );
+
+			if (p_edfOut){
+				if (!fail_asm) io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_asm2D.edf", asm2D );
+				if (!fail_raw) io->writeToEDF( p_outputPrefix+"_evt"+eventname_str+"_raw2D.edf", raw2D );
+			}
+			if (p_h5Out){
+				if (!fail_asm) io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_asm2D.h5", asm2D );
+				if (!fail_raw) io->writeToHDF5( p_outputPrefix+"_evt"+eventname_str+"_raw2D.h5", raw2D );
+			}
+			if (p_tifOut){
+				if (!fail_asm) io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_asm2D.tif", asm2D );
+				if (!fail_raw) io->writeToTiff( p_outputPrefix+"_evt"+eventname_str+"_raw2D.tif", raw2D );
+			}
+
+			delete asm2D;
+			delete raw2D;
 
 			//MsgLog(name(), debug, "\n---histogram of event data used in assembly---\n" 
 			//	<< data_sp->getHistogramASCII(50) );
