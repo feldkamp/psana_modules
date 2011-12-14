@@ -269,25 +269,7 @@ info::event(Event& evt, Env& env)
 		}
 		osst << " (" << it->second.desc << ")" << endl;
 	}
-	
 	MsgLog(name(), info, "------list of read out PVs in event #" << p_count << "------\n" << osst.str() );
-		
-	//compile a list of PVs that need to be read out for each event 
-	// (works, but commented out since it's not needed right now)
-//	vector<string> eventPVs;						// vector for list of PVs
-//	eventPVs.push_back("BEAM:LCLS:ELEC:Q");
-//	
-//	vector<double> eventVals;						// vector for corresponding values
-//	eventVals.assign(eventPVs.size(), 0.);			// set all to zero
-//	
-//	for (unsigned int i = 0; i < eventPVs.size(); i++){
-//		try{
-//			eventVals.at(i) = env.epicsStore().value(eventPVs.at(i));
-//			MsgLog(name(), info, eventPVs.at(i) << " = " << eventVals.at(i) );
-//		}catch(...){
-//			MsgLog(name(), warning, "PV " << eventPVs.at(i) << " doesn't exist." );
-//		}
-//	}
 
 	//stop after a few events
 	if (p_count >= 10){
