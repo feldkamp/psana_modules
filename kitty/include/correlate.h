@@ -106,8 +106,9 @@ private:
 	int p_alg;
 	int p_autoCorrelateOnly;
 	
-	int p_startQ;
-	int p_stopQ;
+	double p_startQ;
+	double p_stopQ;
+	int p_units;
 	
 	int p_LUTx;
 	int p_LUTy;

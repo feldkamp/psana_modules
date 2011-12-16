@@ -65,6 +65,7 @@ correlate::correlate (const std::string& name)
 	, p_autoCorrelateOnly(0)
 	, p_startQ(0)
 	, p_stopQ(0)
+	, p_units(0)
 	, p_LUTx(0)
 	, p_LUTy(0)
 	, io(0)
@@ -94,7 +95,8 @@ correlate::correlate (const std::string& name)
 	p_autoCorrelateOnly = config   ("autoCorrelateOnly",	1);	
 	
 	p_startQ			= config   ("startQ",				0);
-	p_stopQ				= config   ("stopQ",				p_startQ+p_nQ1);	
+	p_stopQ				= config   ("stopQ",				0);	
+	p_units				= config   ("units",				1);
 
 	p_LUTx				= config   ("LUTx",					1000);
 	p_LUTy				= config   ("LUTy",					1000);
@@ -130,6 +132,7 @@ correlate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "nPhi              = '" << p_nPhi << "'" );
 	MsgLog(name(), info, "nQ1               = '" << p_nQ1 << "'" );
 	MsgLog(name(), info, "nQ2               = '" << p_nQ2 << "'" );
+	MsgLog(name(), info, "units             = '" << p_units << "'" );
 	MsgLog(name(), info, "algorithm         = '" << p_alg << "'" );
 	MsgLog(name(), info, "startQ            = '" << p_startQ << "'" );
 	MsgLog(name(), info, "stopQ             = '" << p_stopQ << "'" );
@@ -161,14 +164,33 @@ correlate::beginRun(Event& evt, Env& env)
 	
 	p_outputPrefix = *( (shared_ptr<std::string>) evt.get(IDSTRING_OUTPUT_PREFIX) ).get();
 
-	p_pix1_sp = evt.get(IDSTRING_PX_X_int); 
-	p_pix2_sp = evt.get(IDSTRING_PX_Y_int); 
+	if (p_units == 1){
+		//work in units of detector pixels
+		p_pix1_sp = evt.get(IDSTRING_PX_X_int);
+		p_pix2_sp = evt.get(IDSTRING_PX_Y_int);
+	}else if (p_units == 2){
+		//work with micrometers on the detector
+		p_pix1_sp = evt.get(IDSTRING_PX_X_um);
+		p_pix2_sp = evt.get(IDSTRING_PX_Y_um);
+	}else if (p_units == 3){
+		//work with micrometers on the detector
+		p_pix1_sp = evt.get(IDSTRING_PX_X_q);
+		p_pix2_sp = evt.get(IDSTRING_PX_Y_q);
+	}else{
+		MsgLog(name(), error, "No valid units for pixel arrays specified.");
+	}
 	
 	if (p_pix1_sp && p_pix2_sp){
-		MsgLog(name(), info, "read data for pix1(n=" << p_pix1_sp->size() << "), pix2(n=" << p_pix2_sp->size() << ")" );
+		MsgLog(name(), trace, "read data for pix1(n=" << p_pix1_sp->size() << "), pix2(n=" << p_pix2_sp->size() << ")" );
 	}else{
-		MsgLog(name(), warning, "could not get data from pixX(addr=" << p_pix1_sp.get() << ") or pixY(addr=" << p_pix2_sp.get() << ")" );
+		MsgLog(name(), error, "could not get data from pixX(addr=" << p_pix1_sp.get() << ") or pixY(addr=" << p_pix2_sp.get() << ")" );
 	}
+	
+	//if stop_q is still zero, give it a reasonable default value
+	if (p_stopQ == 0){
+		p_stopQ = p_pix1_sp->calcMax();
+	}
+	
 
 	//create a CrossCorrelator object (whose data will be replaced in every event())
 	//take care of everything that needs to be done only once here
