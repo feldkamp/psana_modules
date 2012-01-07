@@ -92,7 +92,7 @@ correlate::correlate (const std::string& name)
 	p_nQ2 				= config   ("nQ2",					1);
 	
 	p_alg				= config   ("algorithm",			1);
-	p_autoCorrelateOnly = config   ("autoCorrelateOnly",	1);	
+	p_autoCorrelateOnly = config   ("autoCorrelateOnly",	1);
 	
 	p_startQ			= config   ("startQ",				0);
 	p_stopQ				= config   ("stopQ",				0);	
@@ -125,6 +125,7 @@ correlate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "tifOut            = '" << p_tifOut << "'" );
 	MsgLog(name(), info, "edfOut            = '" << p_edfOut << "'" );
 	MsgLog(name(), info, "h5Out             = '" << p_h5Out << "'" );
+	MsgLog(name(), info, "algorithm         = '" << p_alg << "'" );
 	MsgLog(name(), info, "autoCorrelateOnly = '" << p_autoCorrelateOnly << "'" );
 	MsgLog(name(), info, "useMask           = '" << p_useMask << "'" );
 	MsgLog(name(), info, "mask file name    = '" << p_mask_fn << "'" );
@@ -132,10 +133,9 @@ correlate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "nPhi              = '" << p_nPhi << "'" );
 	MsgLog(name(), info, "nQ1               = '" << p_nQ1 << "'" );
 	MsgLog(name(), info, "nQ2               = '" << p_nQ2 << "'" );
-	MsgLog(name(), info, "units             = '" << p_units << "'" );
-	MsgLog(name(), info, "algorithm         = '" << p_alg << "'" );
 	MsgLog(name(), info, "startQ            = '" << p_startQ << "'" );
 	MsgLog(name(), info, "stopQ             = '" << p_stopQ << "'" );
+	MsgLog(name(), info, "units             = '" << p_units << "'" );
 	MsgLog(name(), info, "LUTx              = '" << p_LUTx << "'" );
 	MsgLog(name(), info, "LUTy              = '" << p_LUTy << "'" );
 
@@ -164,21 +164,7 @@ correlate::beginRun(Event& evt, Env& env)
 	
 	p_outputPrefix = *( (shared_ptr<std::string>) evt.get(IDSTRING_OUTPUT_PREFIX) ).get();
 
-	if (p_units == 1){
-		//work in units of detector pixels
-		p_pix1_sp = evt.get(IDSTRING_PX_X_int);
-		p_pix2_sp = evt.get(IDSTRING_PX_Y_int);
-	}else if (p_units == 2){
-		//work with micrometers on the detector
-		p_pix1_sp = evt.get(IDSTRING_PX_X_um);
-		p_pix2_sp = evt.get(IDSTRING_PX_Y_um);
-	}else if (p_units == 3){
-		//work with micrometers on the detector
-		p_pix1_sp = evt.get(IDSTRING_PX_X_q);
-		p_pix2_sp = evt.get(IDSTRING_PX_Y_q);
-	}else{
-		MsgLog(name(), error, "No valid units for pixel arrays specified.");
-	}
+	updatePixelArrays(evt);
 	
 	if (p_pix1_sp && p_pix2_sp){
 		MsgLog(name(), trace, "read data for pix1(n=" << p_pix1_sp->size() << "), pix2(n=" << p_pix2_sp->size() << ")" );
@@ -259,27 +245,24 @@ correlate::event(Event& evt, Env& env)
 	MsgLog(name(), debug,  "correlate::event()" );
 
 	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
-	string eventname_str = *( (shared_ptr<std::string>) evt.get(IDSTRING_CUSTOM_EVENTNAME) ).get();
+	string eventname_str = *( (shared_ptr<std::string>) evt.get(IDSTRING_CUSTOM_EVENTNAME) );
+	bool pvChanged = *(shared_ptr<bool>)evt.get(IDSTRING_PV_CHANGED);
+	
+	MsgLog(name(), debug, "data_sp=" << data_sp << ", eventname_str = " << eventname_str << ", pvChanged = " << pvChanged);
 	
 	if (data_sp){
 		MsgLog(name(), debug, "read event data of size " << data_sp->size() << " from ID string " << IDSTRING_CSPAD_DATA);
-
-		//old version with new objects every time around
-//		if (p_autoCorrelateOnly) {
-//			if (p_useMask) {											//auto-correlation 2D case, with mask
-//				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1, 0, p_mask );
-//			} else { 													//auto-correlation 2D case, no mask
-//				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1 );
-//			}
-//		} else {
-//			if (p_useMask){												//full cross-correlation 3D case, with mask
-//				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1, p_nQ2, p_mask );
-//			} else { 													//full cross-correlation 3D case, no mask
-//				cc = new CrossCorrelator( data_sp.get(), p_pix1_sp.get(), p_pix2_sp.get(), p_nPhi, p_nQ1, p_nQ2);
-//			}
-//		}
 		
-		MsgLog(name(), info, "calling alg " << p_alg << ", startQ=" << p_startQ << ", stopQ=" << p_stopQ );
+		//update the pixel arrays, if a critical PV was changed for this event
+		if (pvChanged){
+			MsgLog(name(), trace, " --- one or more critical PVs have changed! ---");
+			updatePixelArrays(evt);
+			p_cc->setQx( p_pix1_sp.get() );
+			p_cc->setQy( p_pix2_sp.get() );
+		}
+		
+		MsgLog(name(), trace, "calling CrossCorrelator::run"
+			<< "( startQ=" << p_startQ << ", stopQ=" << p_stopQ << ", alg=" << p_alg << " )");
 		p_cc->setData( data_sp.get() );
 		p_cc->run(p_startQ, p_stopQ, p_alg);
 		
@@ -407,6 +390,35 @@ correlate::endJob(Event& evt, Env& env)
 		io->writeToTiff( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D_sp.get(), 1 );
 	}
 	
+}
+
+void correlate::updatePixelArrays(Event& evt)
+{
+	MsgLog(name(), trace, "updating pixel arrays");
+	if (p_units == 1){
+		MsgLog(name(), trace, "working in units of detector pixels");
+		p_pix1_sp = evt.get(IDSTRING_PX_X_int);
+		p_pix2_sp = evt.get(IDSTRING_PX_Y_int);
+	}else if (p_units == 2){
+		MsgLog(name(), trace, "working with micrometers on the detector");
+		p_pix1_sp = evt.get(IDSTRING_PX_X_um);
+		p_pix2_sp = evt.get(IDSTRING_PX_Y_um);
+	}else if (p_units == 3){
+		MsgLog(name(), trace, "working with q-values (in nm^-1)");
+		p_pix1_sp = evt.get(IDSTRING_PX_X_q);
+		p_pix2_sp = evt.get(IDSTRING_PX_Y_q);
+	}else{
+		MsgLog(name(), error, "No valid units for pixel arrays specified.");
+	}
+
+	if(p_pix1_sp && p_pix2_sp){
+		MsgLog(name(), trace, "x: min = " << p_pix1_sp->calcMin() << ", max = " << p_pix1_sp->calcMax() );	
+		MsgLog(name(), trace, "y: min = " << p_pix2_sp->calcMin() << ", max = " << p_pix2_sp->calcMax() );		
+	}else{
+		MsgLog(name(), error, "Could not retrieve new pixel arrays from event. "
+			<< "pix1_sp=" << p_pix1_sp.get() << ", pix2_sp=" << p_pix2_sp.get() << "");
+		throw;
+	}
 }
 
 } // namespace kitty

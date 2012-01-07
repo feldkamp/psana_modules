@@ -42,18 +42,18 @@ namespace kitty {
 	const std::string IDSTRING_PX_PHI = "CSPAD_PHI";
 	const std::string IDSTRING_CUSTOM_EVENTNAME = "CUSTOM_EVENTNAME";
 	const std::string IDSTRING_OUTPUT_PREFIX = "OUTPUT_PREFIX";
+	const std::string IDSTRING_PV_CHANGED = "CRITICAL_PV_CHANGED";
 	
-	
-	const string pvDetPos = "pvDetPos";
-	const string pvLambda = "pvLambda";
-	const string pvElEnergy = "pvElEnergy";
-	const string pvNElectrons = "pvNElectrons";
-	const string pvRepRate = "pvRepRate";
-	const string pvPeakCurrent = "pvPeakCurrent";
-	const string pvPulseLength = "pvPulseLength";
-	const string pvEbeamLoss = "pvEbeamLoss";
-	const string pvNumPhotons = "pvNumPhotons";
-	const string pvPhotonEnergy = "pvPhotonEnergy";
+	const std::string pvDetPos = "pvDetPos";
+	const std::string pvLambda = "pvLambda";
+	const std::string pvElEnergy = "pvElEnergy";
+	const std::string pvNElectrons = "pvNElectrons";
+	const std::string pvRepRate = "pvRepRate";
+	const std::string pvPeakCurrent = "pvPeakCurrent";
+	const std::string pvPulseLength = "pvPulseLength";
+	const std::string pvEbeamLoss = "pvEbeamLoss";
+	const std::string pvNumPhotons = "pvNumPhotons";
+	const std::string pvPhotonEnergy = "pvPhotonEnergy";
 	
 	typedef struct {
 		string name;

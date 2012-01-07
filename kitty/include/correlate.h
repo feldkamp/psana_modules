@@ -85,6 +85,10 @@ public:
 	/// Method which is called once at the end of the job
 	virtual void endJob(Event& evt, Env& env);
 
+
+	//update the internal pixel arrays with information from the event object
+	void updatePixelArrays(Event& evt);
+
 protected:
 
 private:

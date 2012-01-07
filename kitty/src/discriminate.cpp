@@ -62,8 +62,8 @@ namespace kitty {
 discriminate::discriminate (const std::string& name)
 	: Module(name)
 	, p_useCorrectedData(0)
-	, p_lowerThreshold(0)
-	, p_upperThreshold(0)
+	, p_lowerThreshold(0.)
+	, p_upperThreshold(0.)
 	, p_discriminateAlogrithm(0)
 	, p_outputPrefix("")
 	, p_pixelVectorOutput(0)
@@ -74,10 +74,12 @@ discriminate::discriminate (const std::string& name)
 	, p_makePixelArrays_count(0)
 	, p_stopflag(false)
 	, p_useShift(0)	
-	, p_shiftX(0)
-	, p_shiftY(0)
-	, p_detOffset(0)
-	, p_detDistance(0)
+	, p_shiftX(0.)
+	, p_shiftY(0.)
+	, p_detOffset(0.)
+	, p_detDistance(0.)
+	, p_lambda(0.)
+	, p_criticalPVchange(false)
 	, p_pvs()
 	, p_sum_sp()
 	, p_hitInt()
@@ -110,8 +112,8 @@ discriminate::discriminate (const std::string& name)
 	m_tiltIsApplied 			= config   ("tiltIsApplied",		true);			//tilt angle correction
 	m_runNumber					= config   ("calibRunNumber",     	0);
 	
-	p_lowerThreshold 			= config("lowerThreshold", 			-10000000);
-	p_upperThreshold 			= config("upperThreshold", 			10000000);
+	p_lowerThreshold 			= config("lowerThreshold", 			-10000000.0);
+	p_upperThreshold 			= config("upperThreshold", 			10000000.0);
 	p_discriminateAlogrithm 	= config("discriminateAlgorithm", 	0);
 	p_maxHits					= config("maxHits",					10000000);
 	
@@ -292,18 +294,7 @@ discriminate::beginRun(Event& evt, Env& env)
 	}
 	
 	makePixelArrays();
-	
-	//add the calibration arrays to the event for other modules to use
-	evt.put( p_pixX_um_sp, IDSTRING_PX_X_um);
-	evt.put( p_pixY_um_sp, IDSTRING_PX_Y_um);
-	evt.put( p_pixX_int_sp, IDSTRING_PX_X_int);
-	evt.put( p_pixY_int_sp, IDSTRING_PX_Y_int);
-	evt.put( p_pixX_pix_sp, IDSTRING_PX_X_pix);
-	evt.put( p_pixY_pix_sp, IDSTRING_PX_Y_pix);
-	evt.put( p_pixX_q_sp, IDSTRING_PX_X_q);
-	evt.put( p_pixY_q_sp, IDSTRING_PX_Y_q);
-	evt.put( p_pixTwoTheta_sp, IDSTRING_PX_TWOTHETA);
-	evt.put( p_pixPhi_sp, IDSTRING_PX_PHI);	
+	addPixelArraysToEvent( evt );
 }
 
 
@@ -356,19 +347,29 @@ discriminate::event(Event& evt, Env& env)
 	if(p_pvs[pvDetPos].changed || p_pvs[pvLambda].changed){
 		//recalculate the pixel vectors
 		MsgLog(name(), info, "PV for detector position or wavelength changed in this event");
-		MsgLog(name(), warning, "\n"
+		MsgLog(name(), info, "\n"
 			<< "\n=================================="
 			<< "\n=== RECALCULATING PIXEL ARRAYS ==="
 			<< "\n==================================" 
 			<< "\n");
 		makePixelArrays();
+		p_criticalPVchange = true;
 	}
-
+	
+	//append criticalPVchange flag to event to communicate this to other modules
+	//once set to true, p_criticalPVchange needs to stay true at least until the next hit
+	//so that subsequent modules have the chance to act on the change in their event()
+	shared_ptr<bool> updatedPV_sp( new bool(false) );
+	evt.put( updatedPV_sp, IDSTRING_PV_CHANGED );
+	
+	//put pixel arrays into event, so that other modules can use them in their event()
+	addPixelArraysToEvent( evt );
+		
 	std::ostringstream osst;
 //	osst << "t" << eventId->time();
 	osst << std::setfill('0') << std::setw(10) << p_count;
 	shared_ptr<std::string> eventname_sp( new std::string(osst.str()) );
-	evt.put(eventname_sp, IDSTRING_CUSTOM_EVENTNAME);
+	evt.put( eventname_sp, IDSTRING_CUSTOM_EVENTNAME);
 	
 	//if no calibrated data was found in the event, use the raw data from the xtc file
 	//(probably the module cspad_mod.CsPadCalib wasn't executed before)
@@ -460,6 +461,11 @@ discriminate::event(Event& evt, Env& env)
 		
 		// put intensity in hit array
 		p_hitInt.push_back(thresholdingAvg);
+		
+		if (p_criticalPVchange){
+			*updatedPV_sp = true;				// tell other modules to update their PV-dependent properties
+			p_criticalPVchange = false;			// reset the module-internal flag
+		}
 	}
 
 	// output collected information...
@@ -520,6 +526,8 @@ discriminate::endJob(Event& evt, Env& env)
 	MsgLog(name(), info, "\n ------hit intensity histogram------\n" << hits->getHistogramASCII(30) );
 	delete hits;
 }
+
+
 
 
 /// ------------------------------------------------------------------------------------------------
@@ -610,7 +618,7 @@ discriminate::makePixelArrays(){
 		//pixel size values estimated from the read out arrays above, seems about right
 		const double pixelSizeXY_um = m_cspad_calibpar->getColSize_um();		// == getRowSize_um(), square pixels (luckily)
 		shift_X_um = p_shiftX * pixelSizeXY_um;
-		shift_Y_um = p_shiftX * pixelSizeXY_um;
+		shift_Y_um = p_shiftY * pixelSizeXY_um;
 		shift_X_int = p_shiftX;
 		shift_Y_int = p_shiftY;
 		shift_X_pix = p_shiftX;
@@ -734,5 +742,20 @@ discriminate::makePixelArrays(){
 	
 	p_makePixelArrays_count++;
 }
+
+void	
+discriminate::addPixelArraysToEvent( Event &evt ){
+	evt.put( p_pixX_um_sp, IDSTRING_PX_X_um);
+	evt.put( p_pixY_um_sp, IDSTRING_PX_Y_um);
+	evt.put( p_pixX_int_sp, IDSTRING_PX_X_int);
+	evt.put( p_pixY_int_sp, IDSTRING_PX_Y_int);
+	evt.put( p_pixX_pix_sp, IDSTRING_PX_X_pix);
+	evt.put( p_pixY_pix_sp, IDSTRING_PX_Y_pix);
+	evt.put( p_pixX_q_sp, IDSTRING_PX_X_q);
+	evt.put( p_pixY_q_sp, IDSTRING_PX_Y_q);
+	evt.put( p_pixTwoTheta_sp, IDSTRING_PX_TWOTHETA);
+	evt.put( p_pixPhi_sp, IDSTRING_PX_PHI);	
+}	
+
 
 } // namespace kitty

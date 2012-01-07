@@ -98,14 +98,19 @@ public:
 	/// Method which is called once at the end of the job
 	virtual void endJob(Event& evt, Env& env);
 
+
+	//create the internal pixel arrays
 	void makePixelArrays();	
+	
+	//add the calibration arrays to the event for other modules to use
+	void addPixelArraysToEvent( Event &evt );
 
 protected:
 
 private:
 	int p_useCorrectedData;
-	int p_lowerThreshold;
-	int p_upperThreshold;
+	double p_lowerThreshold;
+	double p_upperThreshold;
 	
 	int p_discriminateAlogrithm;
 	
@@ -126,12 +131,9 @@ private:
 	double p_detOffset;				// default = 500.0 + 63.0 = 563
 	double p_detDistance;			// detector distance from sample
 	double p_lambda;				// wavelength
-	
-	std::map<std::string,pv> p_pvs;					// container for list of PVs
-	
-	shared_ptr<array1D> p_sum_sp;	// keep a running sum of all events
+	bool p_criticalPVchange;		// if true, let the other modules know to update all pv-dependent properties in their event()
+	std::map<std::string,pv> p_pvs;		// container for list of PVs
 
-	std::vector<double> p_hitInt;	//vector to keep track of the hit intensity	
 	
 	//-------------comment on detOffset------------------------------------------
 	// At the closest possible position, the stage is at -500mm
@@ -145,7 +147,13 @@ private:
 	//                           || .............               ||
 	//                           ||               ............. ||
 	//     jet                   close pos                      far pos
-	//    
+	
+
+	
+	shared_ptr<array1D> p_sum_sp;		// keep a running sum of all events
+
+	std::vector<double> p_hitInt;		// vector to keep track of the hit intensity	
+
 	shared_ptr<array1D> p_pixX_um_sp;
 	shared_ptr<array1D> p_pixY_um_sp;
 	shared_ptr<array1D> p_pixX_int_sp;
@@ -156,7 +164,8 @@ private:
 	shared_ptr<array1D> p_pixY_q_sp;
 	shared_ptr<array1D> p_pixTwoTheta_sp;
 	shared_ptr<array1D> p_pixPhi_sp;
-
+	
+	
 	//---------------------------------------------------------------pdsm standard stuff
 	//needed to read data from detector
 	std::string		m_dataSourceString;			// Data source set from config file, i.e. CxiDs1.0:Cspad.0
