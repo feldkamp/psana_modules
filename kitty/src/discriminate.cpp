@@ -396,15 +396,34 @@ discriminate::event(Event& evt, Env& env)
 	if (data.get()){
 		int nQuads = data->quads_shape().at(0);
 		for (int q = 0; q < nQuads; ++q) {
-			const Psana::CsPad::ElementV2& el = data->quads(q);			
+			const Psana::CsPad::ElementV2& el = data->quads(q);
+			
+			//this version works for ana-0.3.x releases
+			//more recent releases use the ndarray version below
+			/*
 			const int16_t* quad_data = el.data();
 			std::vector<int> quad_shape = el.data_shape();
 			int actual2x1sPerQuad = quad_shape.at(0);
 			int actualPxPerQuad = actual2x1sPerQuad * nPxPer2x1;
+			for (int i = 0; i < actualPxPerQuad; i++){
+				raw1D->set( q*nMaxPxPerQuad +i, (double)quad_data[i] );
+			}
+			*/
+			
+			//this version works for ana-0.4.0 and up
+			//if you get compile errors here, update your release directory by calling "relupgrade ana-0.4.0"
+			//3d data structure for each quad
+			//shape of quad_data for CSPAD is (sections, rows, columns) = (8, 388, 185)
+			ndarray<int16_t, 3> quad_data = el.data();
+			const unsigned int *quad_shape = quad_data.shape();
+			int sections = quad_shape[0];
+			int rows = quad_shape[1];
+			int cols = quad_shape[2];
+			int actualPxPerQuad = sections * rows * cols;
 			
 			//go through the whole data of the quad, copy to array1D
 			for (int i = 0; i < actualPxPerQuad; i++){
-				raw1D->set( q*nMaxPxPerQuad +i, (double)quad_data[i] );
+				raw1D->set( q*nMaxPxPerQuad +i, (double) (quad_data.data()[i]) );
 			}
 		}//for all quads
 	}else{
