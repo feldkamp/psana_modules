@@ -141,7 +141,7 @@ correlate::beginJob(Event& evt, Env& env)
 
 
 	//load bad pixel mask
-	array2D *img2D = 0;
+	array2D<double> *img2D = 0;
 	int fail = io->readFromFile( p_mask_fn, img2D );
 	if (!fail){
 		create1DFromRawImageCSPAD( img2D, p_mask );
@@ -220,10 +220,10 @@ correlate::beginRun(Event& evt, Env& env)
 		);
 	
 	//size average-keeping arrays after p_nLag is known (from the cross-correlator)
-	p_polarAvg_sp = shared_ptr<array2D>( new array2D(p_nQ1,p_nPhi) );
-	p_corrAvg_sp = shared_ptr<array2D>( new array2D(p_nQ1,p_nLag) );
-	p_qAvg_sp = shared_ptr<array1D>( new array1D(p_nQ1) );
-	p_iAvg_sp = shared_ptr<array1D>( new array1D(p_nQ1) );
+	p_polarAvg_sp = shared_ptr<array2D<double> >( new array2D<double>(p_nQ1,p_nPhi) );
+	p_corrAvg_sp = shared_ptr<array2D<double> >( new array2D<double>(p_nQ1,p_nLag) );
+	p_qAvg_sp = shared_ptr<array1D<double> >( new array1D<double>(p_nQ1) );
+	p_iAvg_sp = shared_ptr<array1D<double> >( new array1D<double>(p_nQ1) );
 }
 
 
@@ -244,7 +244,7 @@ correlate::event(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "correlate::event()" );
 
-	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
+	shared_ptr<array1D<double> > data_sp = evt.get(IDSTRING_CSPAD_DATA);
 	string eventname_str = *( (shared_ptr<std::string>) evt.get(IDSTRING_CUSTOM_EVENTNAME) );
 	bool pvChanged = *(shared_ptr<bool>)evt.get(IDSTRING_PV_CHANGED);
 	
@@ -347,9 +347,7 @@ correlate::endJob(Event& evt, Env& env)
 	p_qAvg_sp->divideByValue( p_count );
 	p_iAvg_sp->divideByValue( p_count );
 	
-	//convert SAXS output to 2D, so they can be written to disk as images (with y-dim == 1)
-	shared_ptr<array2D> qAvg2D_sp = shared_ptr<array2D>( new array2D( p_qAvg_sp.get(), p_qAvg_sp->dim1(), 1 ) );
-	shared_ptr<array2D> iAvg2D_sp = shared_ptr<array2D>( new array2D( p_iAvg_sp.get(), p_iAvg_sp->dim1(), 1 ) );
+
 	
 	//HDF5 output
 	if (p_h5Out){
@@ -360,8 +358,8 @@ correlate::endJob(Event& evt, Env& env)
 		}else{
 			MsgLog(name(), warning, "WARNING. No HDF5 output for 3D cross-correlation case implemented, yet!" );
 		}
-		io->writeToHDF5( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D_sp.get() );
-		io->writeToHDF5( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D_sp.get() );
+		io->writeToHDF5( p_outputPrefix+"_avg_qAvg"+ext, p_qAvg_sp.get() );
+		io->writeToHDF5( p_outputPrefix+"_avg_iAvg"+ext, p_iAvg_sp.get() );
 	}
 	//EDF output
 	if (p_edfOut){
@@ -372,8 +370,8 @@ correlate::endJob(Event& evt, Env& env)
 		}else{
 			MsgLog(name(), warning, "WARNING. No EDF output for 3D cross-correlation case implemented, yet!" );
 		}
-		io->writeToEDF( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D_sp.get() );
-		io->writeToEDF( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D_sp.get() );
+		io->writeToEDF( p_outputPrefix+"_avg_qAvg"+ext, p_qAvg_sp.get() );
+		io->writeToEDF( p_outputPrefix+"_avg_iAvg"+ext, p_iAvg_sp.get() );
 	}
 	//TIFF image output
 	if (p_tifOut){
@@ -386,8 +384,13 @@ correlate::endJob(Event& evt, Env& env)
 			//one possibility would be to write a stack of tiffs, one for each of the outer q values
 		}
 		
-		io->writeToTiff( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D_sp.get(), 1 );
-		io->writeToTiff( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D_sp.get(), 1 );
+		//convert SAXS output to 2D, so they can be written to disk as TIFF images (with y-dim == 1)
+		array2D<double> *qAvg2D = new array2D<double>( p_qAvg_sp.get(), p_qAvg_sp->dim1(), 1 );
+		array2D<double> *iAvg2D = new array2D<double>( p_iAvg_sp.get(), p_iAvg_sp->dim1(), 1 );		
+		io->writeToTiff( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D, 1 );
+		io->writeToTiff( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D, 1 );
+		delete qAvg2D;
+		delete iAvg2D;
 	}
 	
 }

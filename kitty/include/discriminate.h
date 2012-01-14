@@ -150,20 +150,20 @@ private:
 	
 
 	
-	shared_ptr<array1D> p_sum_sp;		// keep a running sum of all events
+	shared_ptr<array1D<double> > p_sum_sp;		// keep a running sum of all events
 
 	std::vector<double> p_hitInt;		// vector to keep track of the hit intensity	
 
-	shared_ptr<array1D> p_pixX_um_sp;
-	shared_ptr<array1D> p_pixY_um_sp;
-	shared_ptr<array1D> p_pixX_int_sp;
-	shared_ptr<array1D> p_pixY_int_sp;
-	shared_ptr<array1D> p_pixX_pix_sp;
-	shared_ptr<array1D> p_pixY_pix_sp;
-	shared_ptr<array1D> p_pixX_q_sp;
-	shared_ptr<array1D> p_pixY_q_sp;
-	shared_ptr<array1D> p_pixTwoTheta_sp;
-	shared_ptr<array1D> p_pixPhi_sp;
+	shared_ptr<array1D<double> > p_pixX_um_sp;
+	shared_ptr<array1D<double> > p_pixY_um_sp;
+	shared_ptr<array1D<double> > p_pixX_int_sp;
+	shared_ptr<array1D<double> > p_pixY_int_sp;
+	shared_ptr<array1D<double> > p_pixX_pix_sp;
+	shared_ptr<array1D<double> > p_pixY_pix_sp;
+	shared_ptr<array1D<double> > p_pixX_q_sp;
+	shared_ptr<array1D<double> > p_pixY_q_sp;
+	shared_ptr<array1D<double> > p_pixTwoTheta_sp;
+	shared_ptr<array1D<double> > p_pixPhi_sp;
 	
 	
 	//---------------------------------------------------------------pdsm standard stuff

@@ -69,7 +69,7 @@ makegain::makegain (const std::string& name)
 	p_modelDelta			= config   ("modelDelta",				1.);
 		
 	io = new arraydataIO();
-	p_sum_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
+	p_sum_sp = shared_ptr<array1D<double> >( new array1D<double>(nMaxTotalPx) );
 }
 
 //--------------
@@ -139,7 +139,7 @@ void
 makegain::event(Event& evt, Env& env)
 {
 	MsgLog(name(), debug, "event()" );
-	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
+	shared_ptr<array1D<double> > data_sp = evt.get(IDSTRING_CSPAD_DATA);
 	
 	if (data_sp){
 		p_sum_sp->addArrayElementwise( data_sp.get() );	
@@ -187,7 +187,7 @@ makegain::endJob(Event& evt, Env& env)
 	CrossCorrelator *cc = new CrossCorrelator( p_sum_sp.get(), p_pixX_int_sp.get(), p_pixY_int_sp.get(), nPhi, nQ1 );
 	cc->calculatePolarCoordinates(startQ, stopQ);
 	
-	array1D *SAXS = 0;
+	array1D<double> *SAXS = 0;
 	cc->polar()->calcAvgCol( SAXS );
 	
 	io->writeToHDF5( p_outputPrefix+"_saxs_1D.h5", SAXS );
@@ -206,8 +206,8 @@ makegain::endJob(Event& evt, Env& env)
 	}
 	io->writeToHDF5( p_outputPrefix+"_model_1D.h5", p_model );
 	
-	array1D *gain = new array1D(nMaxTotalPx);
-	array1D *expected = new array1D(nMaxTotalPx);
+	array1D<double> *gain = new array1D<double>(nMaxTotalPx);
+	array1D<double> *expected = new array1D<double>(nMaxTotalPx);
 	
 	//calculate the expected signal for each q-value
 	//and create a gainmap from the discrepancy
@@ -232,22 +232,22 @@ makegain::endJob(Event& evt, Env& env)
 	
 	
 	//----------------------------model output
-	array2D *model_raw2D = 0;
+	array2D<double> *model_raw2D = 0;
 	createRawImageCSPAD( expected, model_raw2D );
 	io->writeToHDF5( p_outputPrefix+"_model_raw2D.h5", model_raw2D );
 
 	//assemble ASICs
-	array2D *model_asm2D = 0;
+	array2D<double> *model_asm2D = 0;
 	createAssembledImageCSPAD( expected, p_pixX_int_sp.get(), p_pixY_int_sp.get(), model_asm2D );	
 	io->writeToHDF5( p_outputPrefix+"_model_asm2D.h5", model_asm2D );	
 	
 	//----------------------------gain output
-	array2D *gain_raw2D = 0;
+	array2D<double> *gain_raw2D = 0;
 	createRawImageCSPAD( gain, gain_raw2D );
 	io->writeToHDF5( p_outputPrefix+"_gain_raw2D.h5", gain_raw2D );
 
 	//assemble ASICs
-	array2D *gain_asm2D = 0;
+	array2D<double> *gain_asm2D = 0;
 	createAssembledImageCSPAD( gain, p_pixX_int_sp.get(), p_pixY_int_sp.get(), gain_asm2D );
 	io->writeToHDF5( p_outputPrefix+"_gain_asm2D.h5", gain_asm2D );
 

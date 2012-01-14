@@ -112,9 +112,9 @@ correct::beginJob(Event& evt, Env& env)
 	if (p_useBack){
 		if (p_back_fn != ""){
 			delete p_back;
-			p_back = new array1D(nMaxTotalPx);
+			p_back = new array1D<double>(nMaxTotalPx);
 			
-			array2D *img2D = 0;
+			array2D<double> *img2D = 0;
 			int fail = io->readFromFile( p_back_fn, img2D );
  		
 			if (!fail){
@@ -137,9 +137,9 @@ correct::beginJob(Event& evt, Env& env)
 	if (p_useGain){
 		if (p_gain_fn != ""){
 			delete p_gain;
-			p_gain = new array1D(nMaxTotalPx);
+			p_gain = new array1D<double>(nMaxTotalPx);
 
-			array2D *img2D = 0;
+			array2D<double> *img2D = 0;
 			int fail = io->readFromFile( p_gain_fn, img2D );
 
 			if (!fail){
@@ -162,9 +162,9 @@ correct::beginJob(Event& evt, Env& env)
 	if (p_useMask){
 		if (p_mask_fn != ""){
 			delete p_mask;
-			p_mask = new array1D(nMaxTotalPx);
+			p_mask = new array1D<double>(nMaxTotalPx);
 
-			array2D *img2D = 0;
+			array2D<double> *img2D = 0;
 			int	fail = io->readFromFile( p_mask_fn, img2D );
 
 			if (!fail){
@@ -196,7 +196,7 @@ correct::beginRun(Event& evt, Env& env)
 	// create polarization correction array
 	if (p_usePol) {
 		delete p_pol;
-		p_pol = new array1D(nMaxTotalPx);
+		p_pol = new array1D<double>(nMaxTotalPx);
 		
 		// make sure the degree of horizontal polarization is between 0 and 1 (inclusive)
 		if (p_horzPol > 1) {
@@ -207,8 +207,8 @@ correct::beginRun(Event& evt, Env& env)
 			MsgLog(name(), warning, "the degree of horizontal polarization was above 0%, raised to minimum value (0)");
 		}
 		
-		shared_ptr<array1D>	pixPhi_sp = evt.get(IDSTRING_PX_PHI);
-		shared_ptr<array1D> pixTwoTheta_sp = evt.get(IDSTRING_PX_TWOTHETA);
+		shared_ptr<array1D<double> >	pixPhi_sp = evt.get(IDSTRING_PX_PHI);
+		shared_ptr<array1D<double> > pixTwoTheta_sp = evt.get(IDSTRING_PX_TWOTHETA);
 		
 		if (pixPhi_sp && pixTwoTheta_sp) {
 			MsgLog(name(), debug, "read event pixel map of phi of size " << pixPhi_sp->size());
@@ -244,7 +244,7 @@ correct::event(Event& evt, Env& env)
 	MsgLog(name(), debug,  "correct::event()" );
 	int hist_size = 50;
 
-	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
+	shared_ptr<array1D<double> > data_sp = evt.get(IDSTRING_CSPAD_DATA);
 	
 	if (data_sp){
 		MsgLog(name(), debug, "read event data of size " << data_sp->size() );

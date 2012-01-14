@@ -98,11 +98,11 @@ private:
 	double p_horzPol;
 	
 	arraydataIO *io;
-	array1D *p_sum;
-	array1D *p_back;
-	array1D *p_gain;
-	array1D *p_mask;
-	array1D *p_pol;
+	array1D<double> *p_sum;
+	array1D<double> *p_back;
+	array1D<double> *p_gain;
+	array1D<double> *p_mask;
+	array1D<double> *p_pol;
 
 	int p_count;
 };

@@ -94,14 +94,14 @@ private:
 	std::string p_outputPrefix;
 	
 	arraydataIO *io;
-	array1D *p_model;		//model read from file
+	array1D<double> *p_model;		//model read from file
 
-	shared_ptr<array1D> p_pixX_q_sp;
-	shared_ptr<array1D> p_pixY_q_sp;
-	shared_ptr<array1D> p_pixX_int_sp;
-	shared_ptr<array1D> p_pixY_int_sp;
+	shared_ptr<array1D<double> > p_pixX_q_sp;
+	shared_ptr<array1D<double> > p_pixY_q_sp;
+	shared_ptr<array1D<double> > p_pixX_int_sp;
+	shared_ptr<array1D<double> > p_pixY_int_sp;
 	
-	shared_ptr<array1D> p_sum_sp;
+	shared_ptr<array1D<double> > p_sum_sp;
 	
 	int p_count;
 };

@@ -71,7 +71,7 @@ assemble::assemble (const std::string& name)
 	
 
 	io = new arraydataIO();
-	p_sum_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
+	p_sum_sp = shared_ptr<array1D<double> >( new array1D<double>(nMaxTotalPx) );
 }
 
 //--------------
@@ -134,7 +134,7 @@ assemble::event(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "assemble::event()" );
 
-	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
+	shared_ptr<array1D<double> > data_sp = evt.get(IDSTRING_CSPAD_DATA);
 	string eventname_str = *( (shared_ptr<string>) evt.get(IDSTRING_CUSTOM_EVENTNAME) ).get();
 	
 	if (data_sp){
@@ -142,8 +142,8 @@ assemble::event(Event& evt, Env& env)
 		p_count++;	
 		
 		if ( p_singleOutput && !(p_count%p_singleOutput) ){
-			array2D *asm2D = 0;
-			array2D *raw2D = 0;
+			array2D<double> *asm2D = 0;
+			array2D<double> *raw2D = 0;
 			int fail_asm = createAssembledImageCSPAD( data_sp.get(), p_pixX_sp.get(), p_pixY_sp.get(), asm2D );
 			int fail_raw = createRawImageCSPAD( data_sp.get(), raw2D );
 
@@ -218,11 +218,11 @@ assemble::endJob(Event& evt, Env& env)
 	}
 
 	//assemble ASICs
-	array2D *asm2D = 0;
+	array2D<double> *asm2D = 0;
 	int fail_asm = createAssembledImageCSPAD( p_sum_sp.get(), p_pixX_sp.get(), p_pixY_sp.get(), asm2D );
 		
 	//output of 2D raw image (cheetah-style)
-	array2D *raw2D = 0;
+	array2D<double> *raw2D = 0;
 	int fail_raw = createRawImageCSPAD( p_sum_sp.get(), raw2D );
 	
 	string ext = "";

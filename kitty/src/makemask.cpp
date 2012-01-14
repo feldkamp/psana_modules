@@ -77,7 +77,7 @@ makemask::makemask (const std::string& name)
 	p_takeOutASICFrame		= config   ("takeOutASICFrame", 		1);
 		
 	io = new arraydataIO();
-	p_sum_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
+	p_sum_sp = shared_ptr<array1D<double> >( new array1D<double>(nMaxTotalPx) );
 }
 
 //--------------
@@ -107,9 +107,9 @@ makemask::beginJob(Event& evt, Env& env)
 	if (p_useMask){
 		if (p_mask_fn != ""){
 			delete p_mask;
-			p_mask = new array1D;
+			p_mask = new array1D<double>;
 						
-			array2D *img2D = 0;
+			array2D<double> *img2D = 0;
 			int fail = io->readFromFile( p_mask_fn, img2D );
 			create1DFromRawImageCSPAD( img2D, p_mask );
 			delete img2D;
@@ -155,7 +155,7 @@ void
 makemask::event(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "event()" );
-	shared_ptr<array1D> data_sp = evt.get(IDSTRING_CSPAD_DATA);
+	shared_ptr<array1D<double> > data_sp = evt.get(IDSTRING_CSPAD_DATA);
 	
 	if (data_sp){
 		p_sum_sp->addArrayElementwise( data_sp.get() );	
@@ -192,13 +192,13 @@ makemask::endJob(Event& evt, Env& env)
 	//create average out of raw sum
 	p_sum_sp->divideByValue( p_count );
 	
-	array1D *mask = NULL;
+	array1D<double> *mask = NULL;
 	if (p_useMask){
 		//allocate a mask (start from the one already read from file)
-		mask = new array1D( p_mask );
+		mask = new array1D<double>( p_mask );
 	}else{
 		//allocate a mask (initially 1 everywhere)
-		mask = new array1D( nMaxTotalPx );
+		mask = new array1D<double>( nMaxTotalPx );
 		mask->zeros();
 	}
 	
@@ -238,7 +238,7 @@ makemask::endJob(Event& evt, Env& env)
 	
 	io->writeToEDF( p_outputPrefix+"_mask_1D.edf", mask );
 	
-	array2D* mask2D = new array2D;
+	array2D<double> *mask2D = new array2D<double>;
 	createRawImageCSPAD( mask, mask2D );
 	//io->writeToEDF( p_outputPrefix+"_mask_raw2D.edf", mask2D );
 	io->writeToHDF5( p_outputPrefix+"_mask_raw2D.h5", mask2D );

@@ -126,7 +126,7 @@ discriminate::discriminate (const std::string& name)
 	p_shiftY					= config("shiftY",					-862.758);
 	p_detOffset 				= config("detOffset",				500.0 + 63.0);	// see explanation in header
 	
-	p_sum_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
+	p_sum_sp = shared_ptr<array1D<double> >( new array1D<double>(nMaxTotalPx) );
 }
 
 //--------------
@@ -390,8 +390,8 @@ discriminate::event(Event& evt, Env& env)
 	shared_ptr<Psana::CsPad::DataV2> data = evt.get(m_dataSourceString, specifier);
 	
 	//create shared_ptr to an array1D object, which can then be passed to the following modules
-	shared_ptr<array1D> raw1D_sp ( new array1D(nMaxTotalPx) );
-	array1D* raw1D = raw1D_sp.get();
+	shared_ptr<array1D<double> > raw1D_sp ( new array1D<double>(nMaxTotalPx) );
+	array1D<double> *raw1D = raw1D_sp.get();
 	
 	if (data.get()){
 		int nQuads = data->quads_shape().at(0);
@@ -441,15 +441,14 @@ discriminate::event(Event& evt, Env& env)
 	
 	//select algorithm to calculate the thresholding average
 	if (p_discriminateAlogrithm == 1){				// NOT COMPLETELY TESTED, YET
-		int max_pos = 0;
-		array1D *shot_hist = new array1D();
-		array1D *shot_bins = new array1D();
+		std::vector<int> shot_hist;
+		std::vector<double> shot_bins;
 		//calculate a histogram of the non-negative values
 		raw1D->getHistogramInBoundaries(shot_hist, shot_bins, 500, 0, 500);
-		shot_hist->calcMax( max_pos );
-		thresholdingAvg = shot_bins->get(max_pos);
-		delete shot_bins;
-		delete shot_hist;
+		
+		std::vector<int>::iterator it_max = std::max_element( shot_hist.begin(), shot_hist.end() );
+		int max_pos = (int) std::distance( shot_hist.begin(), it_max );
+		thresholdingAvg = shot_bins[max_pos];
 	}else{
 		//if no other algorithm is specified, use a simple average across the whole detector
 		thresholdingAvg = raw1D->calcAvg();
@@ -541,7 +540,7 @@ discriminate::endJob(Event& evt, Env& env)
 	
 	MsgLog(name(), trace, "---complete histogram of averaged data---\n" << p_sum_sp->getHistogramASCII(50) );
 		
-	arraydata *hits = new arraydata(p_hitInt);
+	array1D<double> *hits = new array1D<double>(p_hitInt);
 	MsgLog(name(), info, "\n ------hit intensity histogram------\n" << hits->getHistogramASCII(30) );
 	delete hits;
 }
@@ -595,24 +594,24 @@ discriminate::makePixelArrays(){
 	 *		=> getPixCoorArrY() corresponds to the (+X)-axis in the CXI coordinate system
 	 */
 	// in microns
-	p_pixX_um_sp = shared_ptr<array1D>( new array1D( m_pix_coords_cspad->getPixCoorArrY_um(), nMaxTotalPx) );
-	p_pixY_um_sp = shared_ptr<array1D> ( new array1D( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx) );
+	p_pixX_um_sp = shared_ptr<array1D<double> >( new array1D<double>( m_pix_coords_cspad->getPixCoorArrY_um(), nMaxTotalPx) );
+	p_pixY_um_sp = shared_ptr<array1D<double> > ( new array1D<double>( m_pix_coords_cspad->getPixCoorArrX_um(), nMaxTotalPx) );
 	
 	// in pixel index (integer pixel position only)
-	p_pixX_int_sp = shared_ptr<array1D>( new array1D( m_pix_coords_cspad->getPixCoorArrY_int(), nMaxTotalPx) );
-	p_pixY_int_sp = shared_ptr<array1D>( new array1D( m_pix_coords_cspad->getPixCoorArrX_int(), nMaxTotalPx) );
+	p_pixX_int_sp = shared_ptr<array1D<double> >( new array1D<double>( m_pix_coords_cspad->getPixCoorArrY_int(), nMaxTotalPx) );
+	p_pixY_int_sp = shared_ptr<array1D<double> >( new array1D<double>( m_pix_coords_cspad->getPixCoorArrX_int(), nMaxTotalPx) );
 	
 	// in pix (pixel index, including fraction)
-	p_pixX_pix_sp = shared_ptr<array1D>( new array1D( m_pix_coords_cspad->getPixCoorArrY_pix(), nMaxTotalPx) );
-	p_pixY_pix_sp = shared_ptr<array1D>( new array1D( m_pix_coords_cspad->getPixCoorArrX_pix(), nMaxTotalPx) );
+	p_pixX_pix_sp = shared_ptr<array1D<double> >( new array1D<double>( m_pix_coords_cspad->getPixCoorArrY_pix(), nMaxTotalPx) );
+	p_pixY_pix_sp = shared_ptr<array1D<double> >( new array1D<double>( m_pix_coords_cspad->getPixCoorArrX_pix(), nMaxTotalPx) );
 
 	// q-value vectors (inverse nanometers)
-	p_pixX_q_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
-	p_pixY_q_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
+	p_pixX_q_sp = shared_ptr<array1D<double> >( new array1D<double>(nMaxTotalPx) );
+	p_pixY_q_sp = shared_ptr<array1D<double> >( new array1D<double>(nMaxTotalPx) );
 	
 	// angle vectors (radians)
-	p_pixTwoTheta_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );
-	p_pixPhi_sp = shared_ptr<array1D>( new array1D(nMaxTotalPx) );	
+	p_pixTwoTheta_sp = shared_ptr<array1D<double> >( new array1D<double>(nMaxTotalPx) );
+	p_pixPhi_sp = shared_ptr<array1D<double> >( new array1D<double>(nMaxTotalPx) );	
 	
 					
 	MsgLog(name(), debug, "------read pixel arrays from calib data------");	
@@ -687,7 +686,7 @@ discriminate::makePixelArrays(){
 	if (p_pixelVectorOutput){
 		arraydataIO *io = new arraydataIO();
 		string ext = ".h5";
-		array2D *two = 0;
+		array2D<double> *two = 0;
 		
 		//raw images
 		ext = "_raw.h5";

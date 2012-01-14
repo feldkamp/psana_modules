@@ -119,16 +119,16 @@ private:
 	
 	arraydataIO *io;
 	
-	shared_ptr<array1D> p_pix1_sp;		//input vectors for crosscorrelator
-	shared_ptr<array1D> p_pix2_sp;
+	shared_ptr<array1D<double> > p_pix1_sp;		//input vectors for crosscorrelator
+	shared_ptr<array1D<double> > p_pix2_sp;
 	
-	array1D *p_mask;
+	array1D<double> *p_mask;
 
-	shared_ptr<array2D> p_polarAvg_sp;
-	shared_ptr<array2D> p_corrAvg_sp;
+	shared_ptr<array2D<double> > p_polarAvg_sp;
+	shared_ptr<array2D<double> > p_corrAvg_sp;
 	
-	shared_ptr<array1D> p_qAvg_sp;
-	shared_ptr<array1D> p_iAvg_sp;
+	shared_ptr<array1D<double> > p_qAvg_sp;
+	shared_ptr<array1D<double> > p_iAvg_sp;
 	
 	CrossCorrelator *p_cc;
 	
