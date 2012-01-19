@@ -385,8 +385,11 @@ correlate::endJob(Event& evt, Env& env)
 		}
 		
 		//convert SAXS output to 2D, so they can be written to disk as TIFF images (with y-dim == 1)
-		array2D<double> *qAvg2D = new array2D<double>( p_qAvg_sp.get(), p_qAvg_sp->dim1(), 1 );
-		array2D<double> *iAvg2D = new array2D<double>( p_iAvg_sp.get(), p_iAvg_sp->dim1(), 1 );		
+		
+		array2D<double> *qAvg2D = new array2D<double>;
+		array2D<double> *iAvg2D = new array2D<double>;
+		ns_arraydata::convertToArray2D( p_qAvg_sp.get(), qAvg2D, p_qAvg_sp->dim1(), 1);
+		ns_arraydata::convertToArray2D( p_iAvg_sp.get(), iAvg2D, p_iAvg_sp->dim1(), 1);		
 		io->writeToTiff( p_outputPrefix+"_avg_qAvg"+ext, qAvg2D, 1 );
 		io->writeToTiff( p_outputPrefix+"_avg_iAvg"+ext, iAvg2D, 1 );
 		delete qAvg2D;
