@@ -28,6 +28,8 @@ using std::vector;
 #include <string>
 using std::string;
 
+#include <fstream>
+
 //-------------------------------
 // Collaborating Class Headers --
 //-------------------------------
@@ -65,6 +67,8 @@ discriminate::discriminate (const std::string& name)
 	, p_lowerThreshold(0.)
 	, p_upperThreshold(0.)
 	, p_discriminateAlogrithm(0)
+	, p_hitlist_fn("")
+	, p_hitlist()
 	, p_outputPrefix("")
 	, p_pixelVectorOutput(0)
 	, p_maxHits(0)
@@ -81,7 +85,6 @@ discriminate::discriminate (const std::string& name)
 	, p_lambda(0.)
 	, p_criticalPVchange(false)
 	, p_pvs()
-	, p_sum_sp()
 	, p_hitInt()
 	, p_pixX_um_sp()
 	, p_pixY_um_sp()
@@ -115,6 +118,7 @@ discriminate::discriminate (const std::string& name)
 	p_lowerThreshold 			= config("lowerThreshold", 			-10000000.0);
 	p_upperThreshold 			= config("upperThreshold", 			10000000.0);
 	p_discriminateAlogrithm 	= config("discriminateAlgorithm", 	0);
+	p_hitlist_fn				= configStr("hitlistFileName", 		"hitlist.txt");
 	p_maxHits					= config("maxHits",					10000000);
 	
 	p_outputPrefix				= configStr("outputPrefix", 		"out");
@@ -125,8 +129,6 @@ discriminate::discriminate (const std::string& name)
 	p_shiftX					= config("shiftX",					-867.355);
 	p_shiftY					= config("shiftY",					-862.758);
 	p_detOffset 				= config("detOffset",				500.0 + 63.0);	// see explanation in header
-	
-	p_sum_sp = shared_ptr<array1D<double> >( new array1D<double>(nMaxTotalPx) );
 }
 
 //--------------
@@ -152,6 +154,7 @@ discriminate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "lowerThreshold = " << p_lowerThreshold );
 	MsgLog(name(), info, "upperThreshold = " << p_upperThreshold );
 	MsgLog(name(), info, "discriminateAlgorithm = " << p_discriminateAlogrithm );
+	MsgLog(name(), info, "hitlistFileName = " << p_hitlist_fn );
 	MsgLog(name(), info, "useShift = " << p_useShift );
 	MsgLog(name(), info, "shiftX = " << p_shiftX );
 	MsgLog(name(), info, "shiftY = " << p_shiftY );
@@ -206,7 +209,23 @@ discriminate::beginJob(Event& evt, Env& env)
 		it->second.valid = false;
 		it->second.changed = false;
 	} 
-
+	
+	//fill hitlist, if needed
+	if (p_discriminateAlogrithm == 1){
+		std::ifstream in( p_hitlist_fn.c_str() );
+		while(in.good()){
+			unsigned int hitnum = -1;		// initial value: 4294967295
+			in >> hitnum;
+			p_hitlist.insert(hitnum);
+			MsgLog(name(), trace, "hit added: shot #" << hitnum);
+		}
+		in.close();
+		if( p_hitlist.size() == 0 ){
+			MsgLog(name(), error, "could not read any entries from hitlist in file " << p_hitlist_fn << ".");
+			MsgLog(name(), error, "press any key to continue.");
+			WAIT;
+		}
+	}
 }
 
 
@@ -246,15 +265,6 @@ discriminate::beginRun(Event& evt, Env& env)
 		osst << " (" << it->second.desc << ")" << endl;
 	}
 	MsgLog(name(), info, "------list of read out PVs------\n" << osst.str() );
-	
-	
-//	std::list<EventKey> keys = evt.keys();
-//	MsgLog(name(), info, "------" << keys.size() << " keys in event------");
-//	for ( list<EventKey>::iterator it = keys.begin(); it != keys.end(); it++ ){
-//		ostringstream out;
-//		it->print(out);
-//		MsgLog(name(), info, out.str() << ", key: '" << it->key() << "'");
-//	}
 	
 
 	//get run rumber for this run
@@ -324,7 +334,7 @@ discriminate::event(Event& evt, Env& env)
 	
 	ostringstream evtinfo;
 	evtinfo <<  "evt #" << p_count << ", ";
-	
+
 	//check, if relevant event PVs have changed
 	for (map<string,pv>::iterator it = p_pvs.begin(); it != p_pvs.end(); it++){
 		double prev_val = it->second.value;
@@ -371,119 +381,163 @@ discriminate::event(Event& evt, Env& env)
 	shared_ptr<std::string> eventname_sp( new std::string(osst.str()) );
 	evt.put( eventname_sp, IDSTRING_CUSTOM_EVENTNAME);
 	
-	//if no calibrated data was found in the event, use the raw data from the xtc file
-	//(probably the module cspad_mod.CsPadCalib wasn't executed before)
-	string IDSTRING_CALIBRATED = "calibrated";
-	string IDSTRING_NO_CALIB = "";
-	string specifier = IDSTRING_CALIBRATED;
-	
-	//test, if calibrated data was found for this event, otherwise, use non-calibrated version
-	if ( ((shared_ptr<Psana::CsPad::DataV2>) evt.get(m_dataSourceString, IDSTRING_CALIBRATED)) ){
-		evtinfo << "pre-calibrated data ";
-		specifier = IDSTRING_CALIBRATED;
-	}else{
-		specifier = IDSTRING_NO_CALIB;
-		evtinfo << "non-calibrated data ";
-	}
-	
-	//get CSPAD data from evt object (out of XTC stream)
-	shared_ptr<Psana::CsPad::DataV2> data = evt.get(m_dataSourceString, specifier);
-	
-	//create shared_ptr to an array1D object, which can then be passed to the following modules
+	//create shared_ptr to an array1D object, to which the data is copied below
+	//it can then be passed to the following modules
 	shared_ptr<array1D<double> > raw1D_sp ( new array1D<double>(nMaxTotalPx) );
-	array1D<double> *raw1D = raw1D_sp.get();
-	
-	if (data.get()){
-		int nQuads = data->quads_shape().at(0);
-		for (int q = 0; q < nQuads; ++q) {
-			const Psana::CsPad::ElementV2& el = data->quads(q);
-			
-			//this version works for ana-0.3.x releases
-			//more recent releases use the ndarray version below
-			/*
-			const int16_t* quad_data = el.data();
-			std::vector<int> quad_shape = el.data_shape();
-			int actual2x1sPerQuad = quad_shape.at(0);
-			int actualPxPerQuad = actual2x1sPerQuad * nPxPer2x1;
-			for (int i = 0; i < actualPxPerQuad; i++){
-				raw1D->set( q*nMaxPxPerQuad +i, (double)quad_data[i] );
-			}
-			*/
-			
-			//this version works for ana-0.4.0 and up
-			//if you get compile errors here, update your release directory by calling "relupgrade ana-0.4.0"
-			//3d data structure for each quad
-			//shape of quad_data for CSPAD is (sections, rows, columns) = (8, 388, 185)
-			ndarray<int16_t, 3> quad_data = el.data();
-			const unsigned int *quad_shape = quad_data.shape();
-			int sections = quad_shape[0];
-			int rows = quad_shape[1];
-			int cols = quad_shape[2];
-			int actualPxPerQuad = sections * rows * cols;
-			
-			//go through the whole data of the quad, copy to array1D
-			for (int i = 0; i < actualPxPerQuad; i++){
-				raw1D->set( q*nMaxPxPerQuad +i, (double) (quad_data.data()[i]) );
-			}
-		}//for all quads
-	}else{
-		MsgLog(name(), error, evtinfo.str() 
-			<< " --> could not get data from CSPAD " << m_dataSourceString << ". Skipping this event." );
-		p_skipcount++;
-		p_count++;
-		skip();
-		return;
-	}
-	
-	// 'thresholdingAvg' can be different kinds of averages, depending on the disciminating algorithm
-	// the threshold limits are compared to this value in order to accept or reject this shot
-	double thresholdingAvg = 0;
-	
-	//select algorithm to calculate the thresholding average
-	if (p_discriminateAlogrithm == 1){				// NOT COMPLETELY TESTED, YET
-		std::vector<int> shot_hist;
-		std::vector<double> shot_bins;
-		//calculate a histogram of the non-negative values
-		raw1D->getHistogramInBoundaries(shot_hist, shot_bins, 500, 0, 500);
+	evt.put(raw1D_sp, IDSTRING_CSPAD_DATA);
 		
-		std::vector<int>::iterator it_max = std::max_element( shot_hist.begin(), shot_hist.end() );
-		int max_pos = (int) std::distance( shot_hist.begin(), it_max );
-		thresholdingAvg = shot_bins[max_pos];
-	}else{
-		//if no other algorithm is specified, use a simple average across the whole detector
-		thresholdingAvg = raw1D->calcAvg();
+	//-------------------------------------------------------------begin discrimination
+	bool accept = true;			// determines, if this event is accepted as a hit
+	double hitCriterion = 0;	// stores a criterion that is evaluated again thresholds in the conventional hit finding
+		
+	// listfinder: if active (alg==1), it looks if this event is supposed to be considered a hit
+	if (p_discriminateAlogrithm == 1){
+		if ( p_hitlist.count( p_count ) ){		//check, if the hitlist contains this event
+			accept = true;
+		}else{
+			accept = false;
+		}
 	}
 	
-	ios_base::fmtflags flags = evtinfo.flags();
-	evtinfo << right  
-			<< "avg:" << thresholdingAvg 
-			<< ", threshold delta (" << setprecision(3) << showpos 
-			<< thresholdingAvg-p_lowerThreshold << "/"
-			<< thresholdingAvg-p_upperThreshold << ") ";
-	evtinfo.flags(flags);
+	//-------------------------------------------------------------get CSPAD data from event
+	// if 'accept' is already false here (based on the listfinder)
+	// don't bother even getting the data --> jump ahead to reject this event
+	if (accept){
+	
+		//if no calibrated data was found in the event, use the raw data from the xtc file
+		//(probably the module cspad_mod.CsPadCalib wasn't executed before)
+		string specifier = "";
+		
+		// 1.) test, which version of the 'Data' structure is used
+		// 2.) test, if calibrated data was found for this event, otherwise, use non-calibrated version
+		//-----------------------
+		// test for DataV1
+		if ( ((shared_ptr<Psana::CsPad::DataV1>) evt.get(m_dataSourceString, "")) ){
+			if ( ((shared_ptr<Psana::CsPad::DataV1>) evt.get(m_dataSourceString, IDSTRING_CALIBRATED)) ){
+				evtinfo << "pre-calibrated data (v1) ";
+				specifier = IDSTRING_CALIBRATED;
+			}else{
+				specifier = IDSTRING_NO_CALIB;
+				evtinfo << "non-calibrated data (v1) ";
+			}	
+		// test for DataV2
+		}else if ( ((shared_ptr<Psana::CsPad::DataV2>) evt.get(m_dataSourceString, "")) ){
+			if ( ((shared_ptr<Psana::CsPad::DataV2>) evt.get(m_dataSourceString, IDSTRING_CALIBRATED)) ){
+				evtinfo << "pre-calibrated data ";
+				specifier = IDSTRING_CALIBRATED;
+			}else{
+				specifier = IDSTRING_NO_CALIB;
+				evtinfo << "non-calibrated data ";
+			}
+		}else{
+			MsgLog( name(), error, "Could not find valid CSPAD data");
+			throw "no valid CSPAD data in this event";
+		}
 			
+		//get CSPAD data from evt object (out of XTC stream)
+		shared_ptr<Psana::CsPad::DataV1> datav1 = evt.get(m_dataSourceString, specifier);
+		shared_ptr<Psana::CsPad::DataV2> datav2 = evt.get(m_dataSourceString, specifier);
+		
+		if (datav1 || datav2){
+			int nQuads = 0;
+			if (datav1){
+				nQuads = datav1->quads_shape().at(0);
+			}else if (datav2){
+				nQuads = datav2->quads_shape().at(0);
+			}else{
+				throw "no valid CSPAD data with the given specifier";
+			}
+			for (int q = 0; q < nQuads; ++q) {
+				
+				//this version works for ana-0.3.x releases
+				//more recent releases use the ndarray version below
+				/*
+				const Psana::CsPad::ElementV2& el = data->quads(q);
+				const int16_t* quad_data = el.data();
+				std::vector<int> quad_shape = el.data_shape();
+				int actual2x1sPerQuad = quad_shape.at(0);
+				int actualPxPerQuad = actual2x1sPerQuad * nPxPer2x1;
+				for (int i = 0; i < actualPxPerQuad; i++){
+					raw1D_sp->set( q*nMaxPxPerQuad +i, (double)quad_data[i] );
+				}
+				*/
+				
+				//this version works for ana-0.4.0 and up
+				//if you get compile errors here, update your release directory by calling "relupgrade ana-0.4.0"
+				//3d data structure for each quad
+				//shape of quad_data for CSPAD is (sections, rows, columns) = (8, 388, 185)
+				ndarray<int16_t, 3> quad_data;
+				if (datav1){
+					quad_data = datav1->quads(q).data();
+				}
+				else if (datav2){
+					quad_data = datav2->quads(q).data();
+				}else{
+					throw "no valid CSPAD data in inner loop";	//shouldn't occur. The execption above is thrown first
+				}
+				const unsigned int *quad_shape = quad_data.shape();
+				int sections = quad_shape[0];
+				int rows = quad_shape[1];
+				int cols = quad_shape[2];
+				int actualPxPerQuad = sections * rows * cols;
+				
+				//go through the whole data of the quad, copy to array1D
+				for (int i = 0; i < actualPxPerQuad; i++){
+					raw1D_sp->set( q*nMaxPxPerQuad +i, (double) (quad_data.data()[i]) );
+				}
+			}//for all quads
+		}else{
+			MsgLog(name(), error, evtinfo.str() 
+				<< " --> could not get data from CSPAD " << m_dataSourceString << ". Skipping this event." );
+			p_skipcount++;
+			p_count++;
+			skip();
+			return;
+		}
+		
+		
+		if (p_discriminateAlogrithm != 1){
+			// 'hitCriterion' could be different kinds of averages, depending on the discimination algorithm
+			// as of now, it's simply the average over the whole detector
+			// the threshold limits are compared to this value in order to accept or reject this shot
+			hitCriterion = raw1D_sp->calcAvg();
 			
-	if ( thresholdingAvg <= p_lowerThreshold || thresholdingAvg >= p_upperThreshold ){
-		evtinfo << " xxxxx REJECT xxxxx";
-		p_skipcount++;
-		skip();		// all downstream modules will not be called
-	}else{
+			ios_base::fmtflags flags = evtinfo.flags();
+			evtinfo << right  
+				<< "avg:" << hitCriterion 
+				<< ", threshold delta (" << setprecision(3) << showpos 
+				<< hitCriterion-p_lowerThreshold << "/"
+				<< hitCriterion-p_upperThreshold << ") ";
+			evtinfo.flags(flags);
+			
+			if ( hitCriterion <= p_lowerThreshold || hitCriterion >= p_upperThreshold ){
+				accept = false;
+			}else{
+				accept = true;
+			}
+		}
+	}//end of if(!accept)
+	
+	
+	//-------------------------------------------------------------handle the outcome of the hit finder
+	if ( accept ){
 		evtinfo << " --> ACCEPT (hit# " << p_hitcount << ") <--";
 		p_hitcount++;
 		
-		// add the data to the event so that other modules can access it
-		evt.put(raw1D_sp, IDSTRING_CSPAD_DATA);
-		
-		// add to running sum
-		p_sum_sp->addArrayElementwise( raw1D_sp.get() );
-		
 		// put intensity in hit array
-		p_hitInt.push_back(thresholdingAvg);
+		p_hitInt.push_back(hitCriterion);
+		
+		// add this event to the hitlist (which may or may not have contained it already)
+		p_hitlist.insert( p_count );
 		
 		if (p_criticalPVchange){
 			*updatedPV_sp = true;				// tell other modules to update their PV-dependent properties
 			p_criticalPVchange = false;			// reset the module-internal flag
 		}
+	}else{
+		evtinfo << " xxxxx REJECT xxxxx";
+		p_skipcount++;
+		skip();		// all downstream modules will not be called
 	}
 
 	// output collected information...
@@ -525,8 +579,11 @@ discriminate::endJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "endJob()" );
 
-	//create average out of raw sum
-	p_sum_sp->divideByValue( p_hitcount );
+	//write hitlist to file
+	std::ofstream fout("hitlist_out.txt");
+	for (std::set<unsigned int>::iterator it = p_hitlist.begin(); it != p_hitlist.end(); it++){
+		fout << *it << endl;
+	}	
 
 	MsgLog(name(), info, "---------------------------------------------------");
 	MsgLog(name(), info, "processed events: " << p_count 
@@ -537,8 +594,6 @@ discriminate::endJob(Event& evt, Env& env)
 	if (p_makePixelArrays_count > 1){
 		MsgLog(name(), info, "pixel arrays had to be recalculated " << p_makePixelArrays_count-1 << " times.");
 	}
-	
-	MsgLog(name(), trace, "---complete histogram of averaged data---\n" << p_sum_sp->getHistogramASCII(50) );
 		
 	array1D<double> *hits = new array1D<double>(p_hitInt);
 	MsgLog(name(), info, "\n ------hit intensity histogram------\n" << hits->getHistogramASCII(30) );

@@ -15,6 +15,7 @@
 //-----------------
 #include <vector>
 #include <map>
+#include <set>
 
 //----------------------
 // Base Class Headers --
@@ -112,7 +113,11 @@ private:
 	double p_lowerThreshold;
 	double p_upperThreshold;
 	
-	int p_discriminateAlogrithm;
+	int p_discriminateAlogrithm;			// selects, which discrimination algorithm is used
+	std::string p_hitlist_fn;
+	std::set<unsigned int> p_hitlist;		// p_hitlist has two functions: 
+											// 1.) in regular operation: keeps track of which shots are hits, based on hit finding
+											// 2.) in listfinder operation: reads file in hitlist_fn to tell 'discriminate' which shots to accept
 	
 	std::string	p_outputPrefix;
 	int p_pixelVectorOutput;
@@ -148,9 +153,6 @@ private:
 	//                           ||               ............. ||
 	//     jet                   close pos                      far pos
 	
-
-	
-	shared_ptr<array1D<double> > p_sum_sp;		// keep a running sum of all events
 
 	std::vector<double> p_hitInt;		// vector to keep track of the hit intensity	
 

@@ -43,6 +43,8 @@ namespace kitty {
 	const std::string IDSTRING_CUSTOM_EVENTNAME = "CUSTOM_EVENTNAME";
 	const std::string IDSTRING_OUTPUT_PREFIX = "OUTPUT_PREFIX";
 	const std::string IDSTRING_PV_CHANGED = "CRITICAL_PV_CHANGED";
+	const std::string IDSTRING_CALIBRATED = "calibrated";					// CSPAD data has been calibrated previously (e.g. by cspad_mod)
+	const std::string IDSTRING_NO_CALIB = "";
 	
 	const std::string pvDetPos = "pvDetPos";
 	const std::string pvLambda = "pvLambda";
