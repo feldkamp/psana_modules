@@ -343,6 +343,10 @@ correlate::endJob(Event& evt, Env& env)
 	p_cc->calculateFluctuations();
 	p_cc->calculateXCCA( p_startQ, p_stopQ );									//run correlation on average
 	array2D<double> *corrOfAvg = p_cc->autoCorr();
+
+	//compute the difference between the average of the correlations and the correlation of the average
+	array2D<double> *diff = new array2D<double>( p_corrAvg_sp.get() );
+	diff->subtractArrayElementwise( corrOfAvg );
 	
 
 	//the first output flag (h5Out, edfOut, tifOut), which is true, will determine the written data type
@@ -369,6 +373,7 @@ correlate::endJob(Event& evt, Env& env)
 		io->writeToFile( p_outputPrefix+"_avg_polar"+ext, p_polarAvg_sp.get() );
 		io->writeToFile( p_outputPrefix+"_avg_xaca"+ext, p_corrAvg_sp.get() );
 		io->writeToFile( p_outputPrefix+"_xacaOfAvg"+ext, corrOfAvg );
+		io->writeToFile( p_outputPrefix+"_xacaDiff"+ext, diff );
 	}else{
 		MsgLog(name(), warning, "WARNING. No HDF5 output for 3D cross-correlation case implemented, yet!" );
 	}
