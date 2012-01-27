@@ -30,6 +30,8 @@ using std::string;
 
 #include <fstream>
 
+#include <cmath>
+
 //-------------------------------
 // Collaborating Class Headers --
 //-------------------------------
@@ -429,9 +431,6 @@ discriminate::event(Event& evt, Env& env)
 				specifier = IDSTRING_NO_CALIB;
 				evtinfo << "non-calibrated data ";
 			}
-		}else{
-			MsgLog( name(), error, "Could not find valid CSPAD data");
-			throw "no valid CSPAD data in this event";
 		}
 			
 		//get CSPAD data from evt object (out of XTC stream)
@@ -715,7 +714,7 @@ discriminate::makePixelArrays(){
 		double x_um = p_pixX_um_sp->get(i);
 		double y_um = p_pixY_um_sp->get(i);
 		double r_um = sqrt( x_um*x_um + y_um*y_um );
-		double twoTheta = atan( r_um/1000.0/p_detDistance );
+		double twoTheta = atan2( r_um/1000.0, p_detDistance );
 		double phi = atan2( y_um, x_um );
 		if (phi < 0) { // make sure the angle is between 0 and 2PI
 			phi += 2*M_PI;
