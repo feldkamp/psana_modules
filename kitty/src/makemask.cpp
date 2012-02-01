@@ -62,6 +62,7 @@ makemask::makemask (const std::string& name)
 	, p_useMask(0)
 	, p_takeOutThirteenthRow(0)
 	, p_takeOutASICFrame(0)
+	, p_takeOutWholeSection(-1)
 	, io(0)
 	, p_mask(0)
 	, p_sum_sp()
@@ -75,7 +76,8 @@ makemask::makemask (const std::string& name)
 	p_useMask				= config   ("useMask", 					0);
 	p_takeOutThirteenthRow	= config   ("takeOutThirteenthRow", 	1);
 	p_takeOutASICFrame		= config   ("takeOutASICFrame", 		1);
-		
+	p_takeOutWholeSection		= config   ("takeOutWholeSection", 		-1);
+			
 	io = new arraydataIO();
 	p_sum_sp = shared_ptr<array1D<double> >( new array1D<double>(nMaxTotalPx) );
 }
@@ -188,32 +190,39 @@ void
 makemask::endJob(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "endJob()" );
-
-	//create average out of raw sum
-	p_sum_sp->divideByValue( p_count );
 	
 	array1D<double> *mask = NULL;
 	if (p_useMask){
 		//allocate a mask (start from the one already read from file)
 		mask = new array1D<double>( p_mask );
 	}else{
-		//allocate a mask (initially 1 everywhere)
+		//allocate a mask. Initially, all pixels are GOOD
 		mask = new array1D<double>( nMaxTotalPx );
-		mask->zeros();
-	}
-	
-	//set mask to 1 if pixel is valid, otherwise, leave 0
-	for (unsigned int i = 0; i<p_sum_sp->size(); i++){
-		if ( (p_sum_sp->get(i) < p_badPixelLowerBoundary) || (p_sum_sp->get(i) > p_badPixelUpperBoundary) ){
-			//pixel seems bad: exclude this pixel
-			mask->set(i, BAD);
-		}else{
-			//pixel seems valid: keep this pixel
+		for (unsigned int i = 0; i<p_sum_sp->size(); i++){
 			mask->set(i, GOOD);
 		}
 	}
-	
+
+	if ( p_count != 0 ){	
+		//create average out of raw sum
+		p_sum_sp->divideByValue( p_count );
+
+		//	MsgLog(name(), info, "---complete histogram of averaged data---\n" << p_sum_sp->getHistogramASCII(50) );
+		MsgLog(name(), info, "---partial histogram of averaged data---\n" << p_sum_sp->getHistogramInBoundariesASCII(100, -100, 400) );
+			
+		//set mask to 1 if pixel is valid, otherwise, leave 0
+		for (unsigned int i = 0; i<p_sum_sp->size(); i++){
+			if ( (p_sum_sp->get(i) < p_badPixelLowerBoundary) || (p_sum_sp->get(i) > p_badPixelUpperBoundary) ){
+				//pixel seems bad: exclude this pixel
+				mask->set(i, BAD);
+			}
+		}
+	}else{
+		MsgLog( name(), warning, "No events. No data-dependent masking (thresholding) possible." );
+	}
+			
 	//go through data again: analytically take out certain areas
+	//   - a whole ASIC, if specified in config file
 	//   - first and last row on each ASIC
 	//   - first and last column on each ASIC
 	//   - row 13 on each ASIC
@@ -222,32 +231,37 @@ makemask::endJob(Event& evt, Env& env)
 			for (int c = 0; c < nColsPer2x1; c++){
 				for (int r = 0; r < nRowsPer2x1; r++){
 					int index = q*nMaxPxPerQuad + s*nPxPer2x1 + c*nRowsPer2x1 + r;
+					
 					if ( p_takeOutASICFrame && 
 						(r==0 || r==nRowsPerASIC-1 || r==nRowsPerASIC || r==2*nRowsPerASIC-1 || c==0 || c==nColsPerASIC-1) ){
 						mask->set( index, BAD );
-					}//if
+					}//if takeOutASICFrame
+					
 					if ( p_takeOutThirteenthRow && 
 						(r==nRowsPerASIC-13 || r==2*nRowsPerASIC-13) ){
 							mask->set( index, BAD );
-					}//if
+					}//if takeOutThirteenthRow
+					
+					if ( p_takeOutWholeSection == q*nMax2x1sPerQuad+s ){
+						mask->set( index, BAD );
+					}//if takeOutWholeSection
+					
 				}//for r
 			}//for c
 		}//for s
 	}//for q
 	
+	MsgLog(name(), info, "---histogram of mask---\n" << mask->getHistogramASCII(2) );
 	
-	io->writeToEDF( p_outputPrefix+"_mask_1D.edf", mask );
-	
+	//output 2D
 	array2D<double> *mask2D = new array2D<double>;
 	createRawImageCSPAD( mask, mask2D );
-	//io->writeToEDF( p_outputPrefix+"_mask_raw2D.edf", mask2D );
-	io->writeToHDF5( p_outputPrefix+"_mask_raw2D.h5", mask2D );
+	string ext = ".h5";
+	io->writeToFile( p_outputPrefix+"_mask_raw2D"+ext, mask2D );
 	delete mask2D;
 	
-
-	MsgLog(name(), info, "---histogram of mask---\n" << mask->getHistogramASCII(2) );
-//	MsgLog(name(), info, "---complete histogram of averaged data---\n" << p_sum_sp->getHistogramASCII(50) );
-	MsgLog(name(), info, "---partial histogram of averaged data---\n" << p_sum_sp->getHistogramInBoundariesASCII(100, -100, 400) );
+	//output 1D
+	//io->writeToEDF( p_outputPrefix+"_mask_1D.edf", mask );	
 	
 	delete mask;
 }

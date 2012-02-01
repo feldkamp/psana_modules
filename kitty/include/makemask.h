@@ -95,6 +95,7 @@ private:
 	int p_useMask;
 	int p_takeOutThirteenthRow;
 	int p_takeOutASICFrame;
+	int p_takeOutWholeSection;
 	
 	arraydataIO *io;
 	array1D<double> *p_mask;		//mask read from file
