@@ -98,11 +98,11 @@ discriminate::discriminate (const std::string& name)
 	, p_pixY_q_sp()
 	, p_pixTwoTheta_sp()
 	, p_pixPhi_sp()
+	, p_runNumber(0)
 	, m_dataSourceString("")
 	, m_calibSourceString("")
 	, m_calibDir("")
 	, m_typeGroupName("")
-	, m_runNumber(0)
 	, m_tiltIsApplied(true)
 	, m_cspad_calibpar()
 	, m_pix_coords_2x1()
@@ -115,7 +115,7 @@ discriminate::discriminate (const std::string& name)
 	m_calibDir      			= configStr("calibDir",				"/reg/d/psdm/CXI/cxi35711/calib");
 	m_typeGroupName 			= configStr("typeGroupName",		"CsPad::CalibV1");
 	m_tiltIsApplied 			= config   ("tiltIsApplied",		true);			//tilt angle correction
-	m_runNumber					= config   ("calibRunNumber",     	0);
+	p_runNumber					= config   ("calibRunNumber",     	0);
 	
 	p_lowerThreshold 			= config("lowerThreshold", 			-10000000.0);
 	p_upperThreshold 			= config("upperThreshold", 			10000000.0);
@@ -123,7 +123,7 @@ discriminate::discriminate (const std::string& name)
 	p_hitlist_fn				= configStr("hitlistFileName", 		"hitlist.txt");
 	p_maxHits					= config("maxHits",					10000000);
 	
-	p_outputPrefix				= configStr("outputPrefix", 		"out");
+	p_outputPrefix				= configStr("outputPrefix", 		"");
 	p_pixelVectorOutput			= config("pixelVectorOutput", 		0);
 	
 	p_useCorrectedData			= config("useCorrectedData",        1);
@@ -239,6 +239,33 @@ void
 discriminate::beginRun(Event& evt, Env& env)
 {
 	MsgLog(name(), debug,  "beginRun()" );
+
+	//get run rumber for this run
+	shared_ptr<EventId> eventId = evt.get();
+    if (eventId.get()) {
+		p_runNumber = eventId->run();
+		MsgLog(name(), trace, name() << ": Using run number " << p_runNumber);
+    } else {
+		MsgLog(name(), warning, name() << ": Cannot determine run number, will use 0.");
+		p_runNumber = 0;
+    }
+		
+	//if no output prefix was specified, use the rXXXX, where XXXX is the run number
+	if (p_outputPrefix == ""){
+		ostringstream osst;
+		if (p_runNumber < 10){
+			osst << "r000" << p_runNumber;
+		} else if (p_runNumber < 100){
+			osst << "r00" << p_runNumber;
+		} else if (p_runNumber < 1000){
+			osst << "r0" << p_runNumber;
+		} else {
+			osst << "r" << p_runNumber;
+		}
+		p_outputPrefix = osst.str();
+	}
+
+	MsgLog(name(), info, "outputPrefix = \"" << p_outputPrefix << "\"" );
 	
 	//put output string into event to make it accessible for all modules
 	shared_ptr<std::string> outputPrefix_sp( new std::string(p_outputPrefix) );
@@ -268,16 +295,6 @@ discriminate::beginRun(Event& evt, Env& env)
 	}
 	MsgLog(name(), info, "------list of read out PVs------\n" << osst.str() );
 	
-
-	//get run rumber for this run
-	shared_ptr<EventId> eventId = evt.get();
-    if (eventId.get()) {
-		m_runNumber = eventId->run();
-		MsgLog(name(), trace, name() << ": Using run number " << m_runNumber);
-    } else {
-		MsgLog(name(), warning, name() << ": Cannot determine run number, will use 0.");
-		m_runNumber = 0;
-    }
 	
 	//look up calibration data (CSPAD geometry) for this run
 	try{
@@ -285,9 +302,9 @@ discriminate::beginRun(Event& evt, Env& env)
 								<< "\n\t\t\t calib dir  = '" << m_calibDir << "'"
 								<< "\n\t\t\t type group = '" << m_typeGroupName << "'"
 								<< "\n\t\t\t source     = '" << m_calibSourceString << "'"
-								<< "\n\t\t\t run number = '" << m_runNumber << "'"
+								<< "\n\t\t\t run number = '" << p_runNumber << "'"
 								);
-		m_cspad_calibpar   = new PSCalib::CSPadCalibPars(m_calibDir, m_typeGroupName, m_calibSourceString, m_runNumber);
+		m_cspad_calibpar   = new PSCalib::CSPadCalibPars(m_calibDir, m_typeGroupName, m_calibSourceString, p_runNumber);
 		m_pix_coords_2x1   = new CSPadPixCoords::PixCoords2x1();
 		m_pix_coords_quad  = new CSPadPixCoords::PixCoordsQuad( m_pix_coords_2x1,  m_cspad_calibpar, m_tiltIsApplied );
 		m_pix_coords_cspad = new CSPadPixCoords::PixCoordsCSPad( m_pix_coords_quad, m_cspad_calibpar, m_tiltIsApplied );

@@ -68,6 +68,9 @@ correlate::correlate (const std::string& name)
 	, p_units(0)
 	, p_LUTx(0)
 	, p_LUTy(0)
+	, p_useGrandAvgPolar(0)
+	, p_grandAvgPolarDir("")
+	, p_grandAvgPolarExt("")
 	, io(0)
 	, p_pix1_sp()
 	, p_pix2_sp()
@@ -100,6 +103,10 @@ correlate::correlate (const std::string& name)
 
 	p_LUTx				= config   ("LUTx",					1000);
 	p_LUTy				= config   ("LUTy",					1000);
+	
+	p_useGrandAvgPolar	= config   ("useGrandAvgPolar", 	0);	
+	p_grandAvgPolarDir	= configStr("grandAvgPolarDir", 	"");	
+	p_grandAvgPolarExt	= configStr("grandAvgPolarExt", 	"");
 	
 	io = new arraydataIO();
 
@@ -138,6 +145,9 @@ correlate::beginJob(Event& evt, Env& env)
 	MsgLog(name(), info, "units             = '" << p_units << "'" );
 	MsgLog(name(), info, "LUTx              = '" << p_LUTx << "'" );
 	MsgLog(name(), info, "LUTy              = '" << p_LUTy << "'" );
+	MsgLog(name(), info, "useGrandAvgPolar  = '" << p_useGrandAvgPolar << "'" );
+	MsgLog(name(), info, "grandAvgPolarDir  = '" << p_grandAvgPolarDir << "'" );
+	MsgLog(name(), info, "grandAvgPolarExt  = '" << p_grandAvgPolarExt << "'" );
 
 
 	//load bad pixel mask
@@ -151,7 +161,8 @@ correlate::beginJob(Event& evt, Env& env)
 		WAIT;
 	}
 	delete img2D;
-
+	
+	
 }
 
 
@@ -208,6 +219,23 @@ correlate::beginRun(Event& evt, Env& env)
 	if ( p_alg == 2 || p_alg == 4 ){
 		MsgLog(name(), info, "creating lookup table");
 		p_cc->createLookupTable(p_LUTy, p_LUTx);
+	}
+	
+	//construct a file name to read the grand average polar image, e.g., something like
+	//   reg/neh/home/feldkamp/scratch_cxi35711/runs_2012_03_07_gaincorr/r0084/r0084_avg_polar.h5
+	if (p_useGrandAvgPolar){
+		string fn_grandAvgPolar = p_grandAvgPolarDir + p_outputPrefix + "/" + p_outputPrefix + p_grandAvgPolarExt;
+		MsgLog(	name(), info, "grand average (polar): " << fn_grandAvgPolar );
+		array2D<double> *img2D = 0;
+		int fail = io->readFromFile( fn_grandAvgPolar, img2D );
+		if (!fail){
+			p_cc->setGrandAvgPolar( img2D );
+			MsgLog(name(), info, "grand average (polar) loaded successfully" );
+		}else{
+			MsgLog(name(), info, "grand average (polar) NOT loaded" );		
+			WAIT;
+		}
+		delete img2D;	
 	}
 	
 	MsgLog(name(), info, "CrossCorrelator set up. "

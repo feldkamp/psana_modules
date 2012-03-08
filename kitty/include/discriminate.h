@@ -167,6 +167,7 @@ private:
 	shared_ptr<array1D<double> > p_pixTwoTheta_sp;
 	shared_ptr<array1D<double> > p_pixPhi_sp;
 	
+	unsigned int	p_runNumber;	// stores the current run number (updated in beginRun())
 	
 	//---------------------------------------------------------------pdsm standard stuff
 	//needed to read data from detector
@@ -176,7 +177,6 @@ private:
 	std::string		m_calibSourceString;
 	std::string 	m_calibDir;       	// i.e. /reg/d/psdm/CXI/cxi35711/calib
 	std::string		m_typeGroupName;  	// i.e. CsPad::CalibV1
-	unsigned		m_runNumber;
 	bool			m_tiltIsApplied;
 	
 	PSCalib::CSPadCalibPars        *m_cspad_calibpar;		//all calibration information

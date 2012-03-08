@@ -117,6 +117,10 @@ private:
 	int p_LUTx;
 	int p_LUTy;
 	
+	bool p_useGrandAvgPolar;
+	std::string p_grandAvgPolarDir;
+	std::string p_grandAvgPolarExt;
+	
 	arraydataIO *io;
 	
 	shared_ptr<array1D<double> > p_pix1_sp;		//input vectors for crosscorrelator
