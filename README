@@ -9,11 +9,14 @@ kitty
 	- "correlate"      ---   compute correlations
 
 
-To build these modules on LCLS computers, you will need the "giraffe" library, available as a git repository at "feldkamp/giraffe".
+To build these modules on LCLS computers, you will need the "giraffe" library, available as a git repository at "github.com/feldkamp/giraffe".
 
 
-The release directory was created on 2-Sep-2011
+The release directory was on 2-Sep-2011
 (sit_release = ana-0.3.22)
+
+The release directory was on 15-Jan-2013
+(sit_release = ana-0.7.13)
 
 
 ---execute the following commands on LCLS machines to create a fresh psana release directory, build an example module and test it:
@@ -36,14 +39,15 @@ The release directory was created on 2-Sep-2011
 
 ---basic psana.cfg file contents:
 [psana]
-modules = PrintSeparator PrintEventId kitty.correlate kitty.correct kitty.discriminate kitty.assemble
-[kitty.correlate]
-[kitty.correct]
+modules = PrintSeparator PrintEventId cspad_mod.CsPadCalib kitty.discriminate kitty.correct kitty.correlate kitty.assemble kitty.info kitty.makemask kitty.makegain
+[CsPadCalib]
 [kitty.discriminate]
+[kitty.correct]
+[kitty.correlate]
 [kitty.assemble]
 [kitty.info]
-[kitty.makegain]
 [kitty.makemask]
+[kitty.makegain]
 
 ---execute the following commands to update the freshly created psana release directory to the current version of kitty:
 

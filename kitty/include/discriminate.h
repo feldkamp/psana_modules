@@ -171,7 +171,7 @@ private:
 	
 	//---------------------------------------------------------------pdsm standard stuff
 	//needed to read data from detector
-	std::string		m_dataSourceString;			// Data source set from config file, i.e. CxiDs1.0:Cspad.0
+	Source		m_dataSourceString;			// Data source set from config file, i.e. CxiDs1.0:Cspad.0
 	
 	//needed for CSPadCalibPars (parser of the calibration data)
 	std::string		m_calibSourceString;

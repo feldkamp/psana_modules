@@ -18,29 +18,16 @@ Import('*')
 # but those which need can modify standardSConscript() behavior using
 # a number of arguments, here is a complete list:
 #
-# LIBS - list of additional libraries needed by this package
-# BINS - dictionary of executables and their corresponding source files
-# TESTS - dictionary of test applications and their corresponding source files
-# SCRIPTS - list of scripts in app/ directory
-# UTESTS - names of the unit tests to run, if not given then all tests are unit tests
-# PYEXTMOD - name of the Python extension module, package name used by default
+#    LIBS - list of additional libraries needed by this package
+#    LIBPATH - list of directories for additional libraries
+#    BINS - dictionary of executables and their corresponding source files
+#    TESTS - dictionary of test applications and their corresponding source files
+#    SCRIPTS - list of scripts in app/ directory
+#    UTESTS - names of the unit tests to run, if not given then all tests are unit tests
+#    PYEXTMOD - name of the Python extension module, package name used by default
+#    CCFLAGS - additional flags passed to C/C++ compilers
+#    NEED_QT - set to True to enable Qt support
 #
 #
-
-liblist = Split("""
-   giraffe_shared
-   hdf5
-   fftw3
-   tiff
-   """)
-   
-libpathlist = Split("""
-   /reg/neh/home/feldkamp/giraffe
-   /reg/neh/home/feldkamp/fftw/lib
-   /reg/neh/home/feldkamp/hdf5/lib
-   /reg/neh/home/feldkamp/tiff/lib
-   """)
-   
-
-
-standardSConscript(LIBS=liblist, LIBPATH=libpathlist)
+standardSConscript(LIBPATH="/reg/neh/home/sellberg/source/giraffe",
+ LIBS="giraffe_shared")

@@ -17,7 +17,8 @@
 # Be careful of the trailing "/"; 
 # ensure you have the necessary read/write permissions.
 ########################################################
-source_dir_default = "/reg/d/psdm/cxi/cxi35711/scratch/data/"
+source_dir_default = "/reg/d/psdm/cxi/cxi35711/res/data/"
+#source_dir_default = "/reg/d/psdm/cxi/cxi35711/scratch/data/"
 write_dir_default = "/reg/neh/home/sellberg/CCA-2011/analysis/psana/figures/"
 
 

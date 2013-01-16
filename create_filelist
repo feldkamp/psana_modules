@@ -1,16 +1,21 @@
 #!/bin/bash
 
+if [ $# -eq 1 ]
+then
+ 
+    BASEPATH="/reg/d/ana02"
+    INSTRUMENT="cxi"
+    EXPERIMENT="cxi35711"
+    FILEMASK="e86-$1-s0*xtc"
 
-BASEPATH="/reg/d/ana02"
-INSTRUMENT="cxi"
-EXPERIMENT="cxi35711"
-FILEMASK="e86-r$1-s0*"
+    OUTPUTFILE="filelist_$1.txt"
 
-OUTPUTFILE="filelist_$1.txt"
+    FULLPATH=$BASEPATH/$INSTRUMENT/$EXPERIMENT/xtc/$FILEMASK
 
-FULLPATH=$BASEPATH/$INSTRUMENT/$EXPERIMENT/xtc/$FILEMASK
+    ls $FULLPATH > $OUTPUTFILE
 
-ls $FULLPATH > $OUTPUTFILE
+    echo "File list for "$1" written to "$OUTPUTFILE
 
-echo "File list for run r"$1 " written to " $OUTPUTFILE
-
+else
+    echo "To create file list: ./create_filelist rxxxx"
+fi

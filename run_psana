@@ -1,0 +1,60 @@
+#!/bin/bash
+
+configfile=$1
+runnum=$2
+
+###test if input variables have zero length
+if [ -z "$configfile" ] 
+then
+  echo "no first argument given (psana config file)"
+  exit
+fi
+
+if [ -z "$runnum" ] 
+then
+  echo "no second argument given (run number)"
+  exit
+fi
+
+###make zero-padded input string of length 4
+if [ `expr length $runnum` -eq 4 ]
+then 
+  runstr="r$runnum"
+elif [ `expr length $runnum` -eq 3 ]
+then
+  runstr="r0$runnum"
+elif [ `expr length $runnum` -eq 2 ]
+then
+  runstr="r00$runnum"
+elif [ `expr length $runnum` -eq 1 ]
+then
+  runstr="r000$runnum"
+else
+  echo "Invalid runnumber."
+  exit
+fi
+
+###make log file name
+logfile="log_$runstr.txt"
+
+###make command to execute
+cmd="psana -c $configfile /reg/d/psdm/cxi/cxi35711/xtc/e86-$runstr-s*"
+
+###talk about it a little bit...
+echo "configfile = $configfile"
+echo "runstr = $runstr"
+echo "logfile = $logfile"
+echo $cmd
+
+
+###make new directory, copy config file there, change to it
+mkdir $runstr
+cp $configfile $runstr
+cd $runstr
+
+###...and execute, writing to logfile
+time $cmd > $logfile
+
+###goodbye
+echo "run_psana script finished"
+
